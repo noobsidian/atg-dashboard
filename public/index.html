@@ -594,6 +594,29 @@ body.light .modal-copy-btn { background: #c8ddf0; color: #1a1a2e; border-color: 
 .other-alarm-meta { font-size: 10px; color: #7a9bbf; margin-top: 1px; }
 body.light .other-alarm-meta { color: #4a6a8a; }
 
+
+/* Order flag button */
+.t-name-wrap { display: flex; align-items: center; gap: 5px; }
+.order-flag-btn {
+  background: none; border: 1px solid #324a5f;
+  border-radius: 4px; padding: 1px 5px;
+  font-size: 11px; cursor: pointer; color: #7a9bbf;
+  line-height: 1.4; transition: all 0.2s; flex-shrink: 0;
+}
+.order-flag-btn:hover { border-color: #ff9800; color: #ff9800; }
+.order-flag-active {
+  border-color: #ff9800 !important;
+  color: #ff9800 !important;
+  background: rgba(255,152,0,0.1) !important;
+}
+.order-flag-active::after {
+  content: ' ON ORDER';
+  font-size: 9px; font-weight: bold;
+  letter-spacing: 0.5px;
+}
+body.light .order-flag-btn { color: #4a6a8a; border-color: #b0c8e0; }
+body.light .order-flag-btn:hover { border-color: #e65100; color: #e65100; }
+body.light .order-flag-active { border-color: #e65100 !important; color: #e65100 !important; background: rgba(230,81,0,0.08) !important; }
 </style>
 </head>
 <body>
@@ -1160,6 +1183,94 @@ function buildAlarmSection(alarms, siteUrl) {
   return html;
 }
 
+
+// ── Delivery Requested Flag — shared via Vercel KV ────────────────────────
+// Flags are stored server-side so all users see the same state
+// Auto-clears when a delivery newer than the flag date is detected
+
+const FLAGS_URL = "/api/flags";
+
+// In-memory cache of current flags so rendering doesn't need async calls
+let flagCache = {};
+
+async function loadAllFlags() {
+  try {
+    const resp = await fetch(FLAGS_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (resp.ok) flagCache = await resp.json();
+  } catch(e) { /* use existing cache */ }
+}
+
+function flagCacheKey(siteUrl, tankId) {
+  return siteUrl + "|" + tankId;
+}
+
+function getOrderFlag(siteUrl, tankId) {
+  const entry = flagCache[flagCacheKey(siteUrl, tankId)];
+  return entry ? entry.flagDate : null;
+}
+
+function getOrderFlagBy(siteUrl, tankId) {
+  const entry = flagCache[flagCacheKey(siteUrl, tankId)];
+  return entry ? (entry.orderedBy || "User") : null;
+}
+
+async function setOrderFlag(siteUrl, tankId) {
+  const today = new Date().toISOString().split("T")[0];
+  const key   = flagCacheKey(siteUrl, tankId);
+  // Optimistically update cache
+  flagCache[key] = { flagDate: today, orderedBy: "User" };
+  try {
+    await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flagDate: today, orderedBy: "User" }),
+    });
+  } catch(e) {}
+}
+
+async function clearOrderFlag(siteUrl, tankId) {
+  const key = flagCacheKey(siteUrl, tankId);
+  delete flagCache[key];
+  try {
+    await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" });
+  } catch(e) {}
+}
+
+function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
+  const flagDate = getOrderFlag(siteUrl, tankId);
+  if (!flagDate || !lastDelivery) return flagDate;
+  try {
+    const delivDate = new Date(lastDelivery.dateOnly);
+    const fDate     = new Date(flagDate);
+    if (delivDate > fDate) {
+      // Auto-clear — delivery received after order was placed
+      clearOrderFlag(siteUrl, tankId);
+      return null;
+    }
+  } catch(e) {}
+  return flagDate;
+}
+
+// Toggle flag on click
+document.addEventListener("click", async function(e) {
+  const btn = e.target.closest(".order-flag-btn");
+  if (!btn) return;
+  const siteUrl  = btn.dataset.site;
+  const tankId   = btn.dataset.tank;
+  const flagDate = getOrderFlag(siteUrl, tankId);
+  if (flagDate) {
+    await clearOrderFlag(siteUrl, tankId);
+  } else {
+    await setOrderFlag(siteUrl, tankId);
+  }
+  // Re-render affected site card
+  allSiteResults.forEach((result, i) => {
+    if (!result || result.url !== siteUrl) return;
+    const card = document.getElementById("card-" + i);
+    if (card) card.innerHTML = buildCardHTML(result);
+  });
+});
+
 function buildTankRow(t) {
   const ov = t.override;
   if (ov && ov.isWasteOil) {
@@ -1168,8 +1279,8 @@ function buildTankRow(t) {
     const pctSafe = Math.min(t.pct, 100);
     return "<div class='tank-row waste-oil-row" + (isHigh ? " alarm-row" : "") + "' " + buildDeliveryTooltip(t) + ">"
       + "<div>"
-      +   "<div class='t-name'>Tank " + t.id + "</div>"
-      +   "<div class='t-type'>" + t.fuelType + " <span class='waste-tag'>WASTE</span></div>"
+      +   "<div class='t-name'>" + t.fuelType + " <span class='waste-tag'>WASTE</span></div>"
+      +   "<div class='t-type'>Tank " + t.id + "</div>"
       +   "<span class='status-badge " + (isHigh ? "sb-alarm" : "sb-normal") + "'>" + (isHigh ? "DRAIN NEEDED" : "OK") + "</span>"
       + "</div>"
       + "<div>"
@@ -1195,16 +1306,26 @@ function buildTankRow(t) {
       + "</div>"
       + "</div>";
   }
-  const col     = t.fuelColor || barColor(t.pct);
-  const rc      = rowClass(t.severity);
-  const sbc     = statusBadgeClass(t.severity);
-  const tempStr = t.temp ? "&nbsp;" + t.temp + "&deg;F" : "";
-  const pctSafe = Math.min(t.pct, 100);
-  const capTag  = t.capacityCap ? "<span class='cap-tag'>CAP " + t.capacityCap.toLocaleString() + " G</span>" : "";
+  const col      = t.fuelColor || barColor(t.pct);
+  const rc       = rowClass(t.severity);
+  const sbc      = statusBadgeClass(t.severity);
+  const tempStr  = t.temp ? "&nbsp;" + t.temp + "&deg;F" : "";
+  const pctSafe  = Math.min(t.pct, 100);
+  const capTag   = t.capacityCap ? "<span class='cap-tag'>CAP " + t.capacityCap.toLocaleString() + " G</span>" : "";
+  const siteUrl  = t._siteUrl || "";
+  const flagDate = checkAndClearOrderFlag(siteUrl, t.id, t.lastDelivery);
+  const orderedBy = getOrderFlagBy(siteUrl, t.id);
+  const flagBtn  = "<button class='order-flag-btn" + (flagDate ? " order-flag-active" : "") + "' "
+    + "data-site='" + siteUrl + "' data-tank='" + t.id + "' "
+    + "title='" + (flagDate ? "On order since " + flagDate + " — click to clear" : "Mark as ordered") + "'">"
+    + "&#128666;</button>";
   return "<div class='tank-row " + rc + "' " + buildDeliveryTooltip(t) + ">"
     + "<div>"
-    +   "<div class='t-name'>Tank " + t.id + "</div>"
-    +   "<div class='t-type'>" + t.fuelType + capTag + "</div>"
+    +   "<div class='t-name-wrap'>"
+    +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
+    +   flagBtn
+    +   "</div>"
+    +   "<div class='t-type'>Tank " + t.id + "</div>"
     +   "<span class='status-badge " + sbc + "'>" + t.status + "</span>"
     + "</div>"
     + "<div>"
@@ -1341,6 +1462,9 @@ async function fetchAll() {
   });
   let online = 0, tanks = 0, alarmCount = 0, lowFuel = 0, totalVol = 0;
 
+  // Load shared flags before rendering
+  await loadAllFlags();
+
   let proxyResults;
   try {
     proxyResults = await fetchAllFromProxy();
@@ -1362,6 +1486,7 @@ async function fetchAll() {
 
     if (!proxyResult.error && proxyResult.cgiData && proxyResult.cgiData.tankData) {
       const fuelMap     = proxyResult.invHtml ? parseFuelTypes(proxyResult.invHtml) : {};
+      const deliveryMap = proxyResult.invHtml ? parseDeliveryData(proxyResult.invHtml) : {};
       result.alarms     = Array.isArray(proxyResult.alarms) ? parseProxyAlarms(proxyResult.alarms) : [];
       const volUnits    = proxyResult.cgiData.volUnitsStr || "G";
 
@@ -1389,7 +1514,8 @@ async function fetchAll() {
           grossHeight: t.grossHeight != null ? t.grossHeight.toFixed(2) : null,
           probeLength: getProbeLength(proxyResult.url, t.tankNum),
           capacityCap: (override && override.capacityCap) ? override.capacityCap : null,
-          lastDelivery: null,
+          lastDelivery: (deliveryMap[t.tankNum] && deliveryMap[t.tankNum].length > 0) ? deliveryMap[t.tankNum][0] : null,
+          _siteUrl:    proxyResult.url,
         });
       });
 
