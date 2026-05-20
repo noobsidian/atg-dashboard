@@ -1,7 +1,0 @@
-{
-  "name": "atg-dashboard",
-  "version": "1.0.0",
-  "dependencies": {
-    "@upstash/redis": "^1.31.0"
-  }
-}

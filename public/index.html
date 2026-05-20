@@ -1323,11 +1323,10 @@ function buildTankRow(t) {
   const capTag   = t.capacityCap ? "<span class='cap-tag'>CAP " + t.capacityCap.toLocaleString() + " G</span>" : "";
   const siteUrl  = t._siteUrl || "";
   const flagDate = checkAndClearOrderFlag(siteUrl, t.id, t.lastDelivery);
-  const orderedBy = getOrderFlagBy(siteUrl, t.id);
-  const flagBtn  = "<button class='order-flag-btn" + (flagDate ? " order-flag-active" : "") + "' "
-    + "data-site='" + siteUrl + "' data-tank='" + t.id + "' "
-    + "title='" + (flagDate ? "On order since " + flagDate + " — click to clear" : "Mark as ordered") + "'">"
-    + "&#128666;</button>";
+  const orderedBy  = getOrderFlagBy(siteUrl, t.id);
+  const flagTitle  = flagDate ? "On order since " + flagDate + " - click to clear" : "Mark as ordered";
+  const flagClass  = "order-flag-btn" + (flagDate ? " order-flag-active" : "");
+  const flagBtn    = "<button class='" + flagClass + "' data-site='" + siteUrl + "' data-tank='" + t.id + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
   return "<div class='tank-row " + rc + "' " + buildDeliveryTooltip(t) + ">"
     + "<div>"
     +   "<div class='t-name-wrap'>"
