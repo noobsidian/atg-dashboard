@@ -99,11 +99,11 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
   border-bottom: 1px solid #253a4f;
 }
 .tank-row:last-child { border-bottom: none; }
-.t-name { font-size: 12px; font-weight: bold; color: #03a9f4; }
+.t-name { font-size: 12px; font-weight: bold; color: #03a9f4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-type { font-size: 11px; color: #b0b0b0; }
 .bar-wrap { background: #253a4f; border-radius: 6px; height: 12px; overflow: hidden; border: 1px solid #324a5f; }
 .bar-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease; }
-.t-right { text-align: right; white-space: nowrap; }
+.t-right { text-align: right; white-space: nowrap; min-width: 80px; }
 .t-vol { font-size: 12px; font-weight: bold; color: #fff; }
 .t-pct { font-size: 11px; color: #b0b0b0; }
 .t-ullage {
@@ -596,12 +596,13 @@ body.light .other-alarm-meta { color: #4a6a8a; }
 
 
 /* Order flag button */
-.t-name-wrap { display: flex; align-items: center; gap: 5px; }
 .order-flag-btn {
   background: none; border: 1px solid #324a5f;
   border-radius: 4px; padding: 1px 5px;
   font-size: 11px; cursor: pointer; color: #7a9bbf;
-  line-height: 1.4; transition: all 0.2s; flex-shrink: 0;
+  line-height: 1.4; transition: all 0.2s;
+  display: block; margin-top: 3px; width: 100%;
+  text-align: center;
 }
 .order-flag-btn:hover { border-color: #ff9800; color: #ff9800; }
 .order-flag-active {
@@ -1329,10 +1330,7 @@ function buildTankRow(t) {
   const flagBtn    = "<button class='" + flagClass + "' data-site='" + siteUrl + "' data-tank='" + t.id + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
   return "<div class='tank-row " + rc + "' " + buildDeliveryTooltip(t) + ">"
     + "<div>"
-    +   "<div class='t-name-wrap'>"
     +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
-    +   flagBtn
-    +   "</div>"
     +   "<div class='t-type'>Tank " + t.id + "</div>"
     +   "<span class='status-badge " + sbc + "'>" + t.status + "</span>"
     + "</div>"
@@ -1356,6 +1354,7 @@ function buildTankRow(t) {
     + "<div class='t-right'>"
     +   "<div class='t-vol'>" + t.vol.toLocaleString() + " G</div>"
     +   "<div class='t-pct'>" + t.pct + "%</div>"
+    +   flagBtn
     + "</div>"
     + "</div>";
 }
