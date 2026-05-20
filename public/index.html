@@ -159,6 +159,15 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 .urgent-alarm-desc { font-size: 13px; font-weight: bold; }
 .urgent-alarm-label { font-size: 10px; color: #b0b0b0; margin-top: 1px; }
 .urgent-alarm-cat { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
+.on-order-tag {
+  display: inline-block; margin-left: 8px;
+  font-size: 10px; font-weight: bold;
+  color: #47C13C; background: rgba(71,193,60,0.15);
+  border: 1px solid #47C13C; border-radius: 4px;
+  padding: 1px 6px; vertical-align: middle;
+  letter-spacing: 0.5px;
+}
+body.light .on-order-tag { color: #1b5e20; background: #e0f4e0; border-color: #1b5e20; }
 .notable-alarms { background: #1a1a1a; border-radius: 5px; padding: 3px 6px; margin-bottom: 4px; }
 .other-alarms-wrap { margin-bottom: 4px; }
 .other-alarms-toggle {
@@ -1119,16 +1128,30 @@ function inchesStr(t) {
   return s;
 }
 
-function urgentAlarmHTML(a) {
+function urgentAlarmHTML(a, siteUrl) {
   const isDelivery = (a.description + " " + a.label).toLowerCase().includes("delivery");
   const color  = isDelivery ? "#ff9800" : "#f44336";
   const bg     = isDelivery ? "#2d1f00" : "#2a0a0a";
   const border = isDelivery ? "#7e3d00" : "#5c1a1a";
   const icon   = isDelivery ? "&#9654;" : "&#9888;";
+
+  // Check if any tank at this site matching the alarm label has an order flag
+  let onOrderTag = "";
+  if (isDelivery && siteUrl) {
+    // Try to match flag by tank number from alarm
+    const tankNum = a.tankNum || a.logNum || "";
+    const flagDate = tankNum ? getOrderFlag(siteUrl, tankNum) : null;
+    // Also scan all flags for this site
+    const siteHasFlag = Object.keys(flagCache).some(k => k.startsWith(siteUrl + "|"));
+    if (flagDate || siteHasFlag) {
+      onOrderTag = "<span class='on-order-tag'>&#10003; ON ORDER</span>";
+    }
+  }
+
   return "<div class='urgent-alarm' style='background:" + bg + ";border-left:4px solid " + color + "'>"
     + "<div class='urgent-alarm-icon' style='color:" + color + "'>" + icon + "</div>"
     + "<div class='urgent-alarm-body'>"
-    + "<div class='urgent-alarm-desc' style='color:" + color + "'>" + a.description + "</div>"
+    + "<div class='urgent-alarm-desc' style='color:" + color + "'>" + a.description + onOrderTag + "</div>"
     + (a.label ? "<div class='urgent-alarm-label'>" + a.label + "</div>" : "")
     + "</div>"
     + "<div class='urgent-alarm-cat' style='color:" + color + "'>" + a.category + "</div>"
@@ -1159,7 +1182,7 @@ function buildAlarmSection(alarms, siteUrl) {
   let html = "<div class='alarm-section-wrap'>";
   if (urgent.length > 0) {
     html += "<div class='urgent-alarms'>";
-    urgent.forEach(a => { html += urgentAlarmHTML(a); });
+    urgent.forEach(a => { html += urgentAlarmHTML(a, siteUrl); });
     html += "</div>";
   }
   if (notable.length > 0) {
