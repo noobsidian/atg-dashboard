@@ -1195,9 +1195,18 @@ let flagCache = {};
 
 async function loadAllFlags() {
   try {
-    const resp = await fetch(FLAGS_URL + "?_=" + Date.now(), { cache: "no-store" });
-    if (resp.ok) flagCache = await resp.json();
-  } catch(e) { /* use existing cache */ }
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 5000);
+    const resp = await fetch(FLAGS_URL + "?_=" + Date.now(), { cache: "no-store", signal: ctrl.signal });
+    clearTimeout(tid);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && typeof data === "object" && !data.error) flagCache = data;
+    }
+  } catch(e) {
+    // KV unavailable — flags just won't show, dashboard still works
+    console.warn("Flags unavailable:", e.message);
+  }
 }
 
 function flagCacheKey(siteUrl, tankId) {
@@ -1462,8 +1471,7 @@ async function fetchAll() {
   });
   let online = 0, tanks = 0, alarmCount = 0, lowFuel = 0, totalVol = 0;
 
-  // Load shared flags before rendering
-  await loadAllFlags();
+  // Flags loaded on init and after toggle — not on every refresh
 
   let proxyResults;
   try {
@@ -1564,6 +1572,9 @@ async function fetchAll() {
 }
 
 document.getElementById("refresh-btn").addEventListener("click", fetchAll);
+
+// Load flags once on startup
+try { loadAllFlags(); } catch(e) {}
 document.getElementById("refresh-select").addEventListener("change", applyRefreshRate);
 
 // ── Restore saved refresh rate ─────────────────────────────────────────────
