@@ -1135,15 +1135,12 @@ function urgentAlarmHTML(a, siteUrl) {
   const border = isDelivery ? "#7e3d00" : "#5c1a1a";
   const icon   = isDelivery ? "&#9654;" : "&#9888;";
 
-  // Check if any tank at this site matching the alarm label has an order flag
+  // Check if THIS specific tank has an order flag
   let onOrderTag = "";
   if (isDelivery && siteUrl) {
-    // Try to match flag by tank number from alarm
     const tankNum = a.tankNum || a.logNum || "";
     const flagDate = tankNum ? getOrderFlag(siteUrl, tankNum) : null;
-    // Also scan all flags for this site
-    const siteHasFlag = Object.keys(flagCache).some(k => k.startsWith(siteUrl + "|"));
-    if (flagDate || siteHasFlag) {
+    if (flagDate) {
       onOrderTag = "<span class='on-order-tag'>&#10003; ON ORDER</span>";
     }
   }
