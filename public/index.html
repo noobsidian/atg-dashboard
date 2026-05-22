@@ -1966,7 +1966,12 @@ function getDeliveryCap(fuelType) {
 function tankNeedsOrder(t) {
   if (!t) return false;
   if (t.override && t.override.isWasteOil) return false;
-  // Needs order if: severity is alarm/warning, OR pct < 25, OR delivery needed alarm text
+  // Exclude tanks with 0 volume — likely a probe malfunction
+  if (!t.vol || t.vol === 0) return false;
+  // Exclude tanks already flagged as on order
+  const flagDate = getOrderFlag(t._siteUrl || "", String(t.id));
+  if (flagDate) return false;
+  // Needs order if: severity is alarm/warning, OR pct < 25
   if (t.severity && (t.severity.toLowerCase() === "alarm" || t.severity.toLowerCase() === "warning")) return true;
   if (t.pct < 25) return true;
   return false;
