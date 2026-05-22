@@ -1271,10 +1271,11 @@ function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
   const flagDate = getOrderFlag(siteUrl, tankId);
   if (!flagDate || !lastDelivery) return flagDate;
   try {
-    const delivDate = new Date(lastDelivery.dateOnly);
-    const fDate     = new Date(flagDate);
-    if (delivDate > fDate) {
-      // Auto-clear — delivery received after order was placed
+    // Parse delivery date as YYYY-MM-DD for reliable comparison
+    const delivParts = new Date(lastDelivery.dateOnly);
+    const delivStr   = delivParts.toISOString().split("T")[0]; // YYYY-MM-DD
+    // Only auto-clear if delivery date is strictly AFTER flag date (not same day)
+    if (delivStr > flagDate) {
       clearOrderFlag(siteUrl, tankId);
       return null;
     }
