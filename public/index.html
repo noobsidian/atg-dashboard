@@ -1286,7 +1286,7 @@ function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
 document.addEventListener("click", async function(e) {
   const btn = e.target.closest(".order-flag-btn");
   if (!btn) return;
-  const siteUrl  = btn.dataset.site;
+  const siteUrl  = decodeURIComponent(btn.dataset.site || "");
   const tankId   = btn.dataset.tank;
   const flagDate = getOrderFlag(siteUrl, tankId);
   if (flagDate) {
@@ -1348,7 +1348,7 @@ function buildTankRow(t) {
   const orderedBy  = getOrderFlagBy(siteUrl, t.id);
   const flagTitle  = flagDate ? "On order since " + flagDate + " - click to clear" : "Mark as ordered";
   const flagClass  = "order-flag-btn" + (flagDate ? " order-flag-active" : "");
-  const flagBtn    = "<button class='" + flagClass + "' data-site='" + siteUrl + "' data-tank='" + String(t.id) + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
+  const flagBtn    = "<button class='" + flagClass + "' data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
   return "<div class='tank-row " + rc + "' " + buildDeliveryTooltip(t) + ">"
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
