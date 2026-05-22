@@ -18,16 +18,26 @@ async function readBin() {
   return data.record || { flags: {} };
 }
 
-async function writeBin(record) {
-  const resp = await fetch(BIN_URL, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Master-Key': MASTER_KEY,
-    },
-    body: JSON.stringify(record),
-  });
-  if (!resp.ok) throw new Error('Write failed: ' + resp.status);
+async function writeBin(record, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    // Always re-read before writing to avoid overwriting concurrent changes
+    let current;
+    try { current = await readBin(); } catch(e) { current = { flags: {} }; }
+    // Merge incoming record flags over current flags
+    const merged = { flags: { ...current.flags, ...record.flags } };
+    
+    const resp = await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': MASTER_KEY,
+      },
+      body: JSON.stringify(merged),
+    });
+    if (resp.ok) return;
+    if (i < retries - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
+  }
+  throw new Error('Write failed after retries');
 }
 
 export default async function handler(req, res) {
@@ -50,16 +60,21 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body   = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const record = await readBin();
-      record.flags[key] = { flagDate: body.flagDate, orderedBy: body.orderedBy || 'User' };
-      await writeBin(record);
+      // writeBin does a fresh read internally so just pass the single flag to merge
+      await writeBin({ flags: { [key]: { flagDate: body.flagDate, orderedBy: body.orderedBy || 'User' } } });
       return res.status(200).json({ ok: true });
     }
 
     if (req.method === 'DELETE') {
       const record = await readBin();
       delete record.flags[key];
-      await writeBin(record);
+      // Pass full record for delete since we need to remove a key
+      const resp = await fetch(BIN_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': MASTER_KEY },
+        body: JSON.stringify(record),
+      });
+      if (!resp.ok) throw new Error('Delete failed: ' + resp.status);
       return res.status(200).json({ ok: true });
     }
 
