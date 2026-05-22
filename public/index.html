@@ -795,6 +795,7 @@ function parseProxyAlarms(data) {
     }
     return {
       logNum:      item.itemnum || "",
+      tankNum:     item.itemnum ? String(item.itemnum) : "",
       label:       item.itemlabel || "",
       tankLabel:   item.itemlabel || "",
       description: item.alarmdesc || item.catdesc || "Alarm",
@@ -1138,7 +1139,7 @@ function urgentAlarmHTML(a, siteUrl) {
   // Check if THIS specific tank has an order flag
   let onOrderTag = "";
   if (isDelivery && siteUrl) {
-    const tankNum = a.tankNum || a.logNum || "";
+    const tankNum = String(a.tankNum || a.logNum || "");
     const flagDate = tankNum ? getOrderFlag(siteUrl, tankNum) : null;
     if (flagDate) {
       onOrderTag = "<span class='on-order-tag'>&#10003; ON ORDER</span>";
@@ -1231,7 +1232,7 @@ async function loadAllFlags() {
 }
 
 function flagCacheKey(siteUrl, tankId) {
-  return siteUrl + "|" + tankId;
+  return siteUrl + "|" + String(tankId);
 }
 
 function getOrderFlag(siteUrl, tankId) {
@@ -1347,7 +1348,7 @@ function buildTankRow(t) {
   const orderedBy  = getOrderFlagBy(siteUrl, t.id);
   const flagTitle  = flagDate ? "On order since " + flagDate + " - click to clear" : "Mark as ordered";
   const flagClass  = "order-flag-btn" + (flagDate ? " order-flag-active" : "");
-  const flagBtn    = "<button class='" + flagClass + "' data-site='" + siteUrl + "' data-tank='" + t.id + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
+  const flagBtn    = "<button class='" + flagClass + "' data-site='" + siteUrl + "' data-tank='" + String(t.id) + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
   return "<div class='tank-row " + rc + "' " + buildDeliveryTooltip(t) + ">"
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
