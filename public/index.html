@@ -1248,8 +1248,6 @@ function getOrderFlagBy(siteUrl, tankId) {
 async function setOrderFlag(siteUrl, tankId) {
   const today = new Date().toISOString().split("T")[0];
   const key   = flagCacheKey(siteUrl, tankId);
-  // Optimistically update cache
-  flagCache[key] = { flagDate: today, orderedBy: "User" };
   try {
     await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), {
       method: "POST",
@@ -1257,14 +1255,17 @@ async function setOrderFlag(siteUrl, tankId) {
       body: JSON.stringify({ flagDate: today, orderedBy: "User" }),
     });
   } catch(e) {}
+  // Update cache AFTER write so it reflects server state
+  flagCache[key] = { flagDate: today, orderedBy: "User" };
 }
 
 async function clearOrderFlag(siteUrl, tankId) {
   const key = flagCacheKey(siteUrl, tankId);
-  delete flagCache[key];
   try {
     await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" });
   } catch(e) {}
+  // Update cache AFTER write
+  delete flagCache[key];
 }
 
 function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
