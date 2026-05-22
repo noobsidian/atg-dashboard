@@ -1248,24 +1248,23 @@ function getOrderFlagBy(siteUrl, tankId) {
 async function setOrderFlag(siteUrl, tankId) {
   const today = new Date().toISOString().split("T")[0];
   const key   = flagCacheKey(siteUrl, tankId);
-  try {
-    await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ flagDate: today, orderedBy: "User" }),
-    });
-  } catch(e) {}
-  // Update cache AFTER write so it reflects server state
+  // Update cache immediately so re-render shows correct state
   flagCache[key] = { flagDate: today, orderedBy: "User" };
+  // Write to server in background
+  fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ flagDate: today, orderedBy: "User" }),
+  }).catch(e => console.warn("Flag save failed:", e));
 }
 
 async function clearOrderFlag(siteUrl, tankId) {
   const key = flagCacheKey(siteUrl, tankId);
-  try {
-    await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" });
-  } catch(e) {}
-  // Update cache AFTER write
+  // Update cache immediately so re-render shows correct state
   delete flagCache[key];
+  // Write to server in background
+  fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" })
+    .catch(e => console.warn("Flag clear failed:", e));
 }
 
 function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
@@ -1284,18 +1283,18 @@ function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
 }
 
 // Toggle flag on click
-document.addEventListener("click", async function(e) {
+document.addEventListener("click", function(e) {
   const btn = e.target.closest(".order-flag-btn");
   if (!btn) return;
   const siteUrl  = decodeURIComponent(btn.dataset.site || "");
   const tankId   = btn.dataset.tank;
   const flagDate = getOrderFlag(siteUrl, tankId);
   if (flagDate) {
-    await clearOrderFlag(siteUrl, tankId);
+    clearOrderFlag(siteUrl, tankId);
   } else {
-    await setOrderFlag(siteUrl, tankId);
+    setOrderFlag(siteUrl, tankId);
   }
-  // Re-render affected site card
+  // Re-render immediately — cache already updated synchronously
   allSiteResults.forEach((result, i) => {
     if (!result || result.url !== siteUrl) return;
     const card = document.getElementById("card-" + i);
