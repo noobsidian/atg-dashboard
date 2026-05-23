@@ -1979,10 +1979,14 @@ function tankNeedsOrder(t) {
 
 // Calculate recommended order amount using compartment combinations
 // Fill up to cap without exceeding it, using largest compartments first
-function recommendOrder(currentVol, fuelType, capacityCap) {
-  const cap      = getDeliveryCap(fuelType);
-  const effCap   = capacityCap ? Math.min(cap, capacityCap) : cap;
-  const space    = Math.max(0, effCap - currentVol);
+function recommendOrder(currentVol, fuelType, capacityCap, tankUllage) {
+  const deliveryCap = getDeliveryCap(fuelType);
+  // Use tank monitor's adjusted ullage as available space if provided
+  // This respects the OMNTEC's own high level threshold setting
+  // Cap at delivery max (tanker load limit) as a secondary constraint
+  const space = tankUllage
+    ? Math.min(Math.max(0, tankUllage), deliveryCap)
+    : Math.max(0, (capacityCap ? Math.min(deliveryCap, capacityCap) : deliveryCap) - currentVol);
   if (space <= 0) return 0;
 
   // Fill compartments greedily from largest to smallest without exceeding space
@@ -2040,7 +2044,7 @@ function buildOrderContent(title, productFilter) {
     );
     const orderableTanks = siteTanks.filter(t =>
       isFuelProduct(t.fuelType)
-        ? recommendOrder(t.vol, t.fuelType, t.capacityCap) > 0
+        ? recommendOrder(t.vol, t.fuelType, t.capacityCap, t.ullage) > 0
         : (t.ullage || 0) > 0
     );
     if (orderableTanks.length === 0) return;
@@ -2054,7 +2058,7 @@ function buildOrderContent(title, productFilter) {
     orderableTanks.forEach(t => {
       const inStr       = t.grossHeight ? " (" + t.grossHeight + " in)" : "";
       const recommended = isFuelProduct(t.fuelType)
-        ? recommendOrder(t.vol, t.fuelType, t.capacityCap)
+        ? recommendOrder(t.vol, t.fuelType, t.capacityCap, t.ullage)
         : t.ullage;
       const recFmt  = recommended.toLocaleString();
       const tankRef = "Tank " + t.id + " - " + t.fuelType;
