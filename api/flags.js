@@ -44,16 +44,6 @@ export default async function handler(req, res) {
   }
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
 
-  // Diagnostic mode
-  if (req.query.debug) {
-    return res.status(200).json({
-      hasId:    !!GIST_ID,
-      hasToken: !!GIST_TOKEN,
-      idPrefix: GIST_ID ? GIST_ID.substring(0, 8) : null,
-      tokenPrefix: GIST_TOKEN ? GIST_TOKEN.substring(0, 6) : null,
-    });
-  }
-
   if (!GIST_ID || !GIST_TOKEN) {
     if (req.method === 'GET') return res.status(200).json({});
     return res.status(200).json({ ok: false, error: 'Gist not configured' });
@@ -89,7 +79,7 @@ export default async function handler(req, res) {
 
   } catch(e) {
     console.error('Gist error:', e);
-    if (req.method === 'GET') return res.status(200).json({ error: e.message });
+    if (req.method === 'GET') return res.status(200).json({});
     return res.status(200).json({ ok: false, error: e.message });
   }
 }
