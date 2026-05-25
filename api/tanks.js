@@ -35,12 +35,11 @@ async function fetchSite(site) {
       fetchUrl(site.url + '/php/getAlarms.php?current=1').catch(() => '[]'),
     ]);
 
-    result.cgiData = JSON.parse(cgiRaw);
+    try { result.cgiData = JSON.parse(cgiRaw); } catch(e) { throw new Error('Invalid JSON from CGI'); }
     result.invHtml = invHtml;
-
     try { result.alarms = JSON.parse(alarmRaw); } catch(e) { result.alarms = []; }
+    if (!result.cgiData || !result.cgiData.tankData) throw new Error('No tank data');
 
-    if (!result.cgiData.tankData) throw new Error('No tank data');
   } catch(e) {
     result.error = e.message;
   }
@@ -48,17 +47,13 @@ async function fetchSite(site) {
 }
 
 module.exports = async (req, res) => {
-  // CORS headers so the dashboard page can call this
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  try {
-    const results = await Promise.all(SITES.map(fetchSite));
-    res.status(200).json(results);
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
+  // Each site handled independently — one failure won't crash the whole response
+  const results = await Promise.all(SITES.map(fetchSite));
+  res.status(200).json(results);
 };

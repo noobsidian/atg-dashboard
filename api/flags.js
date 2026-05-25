@@ -37,7 +37,7 @@ async function writeGist(record) {
   if (!resp.ok) throw new Error('Gist write failed: ' + resp.status);
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
     return res.status(200).end();
@@ -82,4 +82,4 @@ export default async function handler(req, res) {
     if (req.method === 'GET') return res.status(200).json({});
     return res.status(200).json({ ok: false, error: e.message });
   }
-}
+};
