@@ -1332,13 +1332,19 @@ async function clearOrderFlag(siteUrl, tankId) {
     .catch(e => console.warn("Flag clear failed:", e));
 }
 
+const MIN_DELIVERY_GALLONS = 200; // minimum delivery to auto-clear an order flag
+
 function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
   const flagDate = getOrderFlag(siteUrl, tankId);
   if (!flagDate || !lastDelivery) return flagDate;
   try {
+    // Only auto-clear if delivery is a real delivery (200+ gallons)
+    // Ignores temperature compensation events and small meter corrections
+    const gallons = Math.abs(lastDelivery.grossVolume || 0);
+    if (gallons < MIN_DELIVERY_GALLONS) return flagDate;
+
     // Parse delivery date as YYYY-MM-DD for reliable comparison
-    const delivParts = new Date(lastDelivery.dateOnly);
-    const delivStr   = delivParts.toISOString().split("T")[0]; // YYYY-MM-DD
+    const delivStr = new Date(lastDelivery.dateOnly).toISOString().split("T")[0];
     // Only auto-clear if delivery date is strictly AFTER flag date (not same day)
     if (delivStr > flagDate) {
       clearOrderFlag(siteUrl, tankId);
