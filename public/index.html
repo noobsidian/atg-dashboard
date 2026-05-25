@@ -1624,6 +1624,41 @@ async function fetchAll() {
         if (aLast !== bLast) return aLast - bLast;
         return a.id - b.id;
       });
+
+      // Supplement alarms with statusCondsList entries from CGI tank data
+      // This catches alarms like Delivery Needed that appear in tank status
+      // but may not surface through the getAlarms.php endpoint
+      proxyResult.cgiData.tankData.forEach(t => {
+        if (!t.statusCondsList || !Array.isArray(t.statusCondsList)) return;
+        const override = getTankOverride(proxyResult.url, t.tankNum);
+        if (override && override.isWasteOil) return;
+        const tankObj = result.tanks.find(rt => rt.id === t.tankNum);
+        if (!tankObj) return;
+
+        t.statusCondsList.forEach(cond => {
+          const desc = cond.statusIndStr || "";
+          const sev  = (cond.statusIndSeverity || "Normal").toLowerCase();
+          if (sev === "normal" || desc.toLowerCase() === "normal") return;
+
+          // Check if this condition is already in alarms list
+          const already = result.alarms.some(a =>
+            String(a.tankNum) === String(t.tankNum) &&
+            a.description.toLowerCase() === desc.toLowerCase()
+          );
+          if (already) return;
+
+          result.alarms.push({
+            logNum:     String(t.tankNum),
+            tankNum:    String(t.tankNum),
+            label:      tankObj.fuelType,
+            tankLabel:  tankObj.fuelType,
+            description: desc,
+            category:   "Tank",
+            severity:   sev === "warning" ? "warning" : "alarm",
+            timeActive: "",
+          });
+        });
+      });
     }
 
     allSiteResults[i] = result;
