@@ -10,14 +10,16 @@ const GIST_TOKEN = process.env.GITHUB_GIST_TOKEN;
 const GIST_FILE  = 'flags.json';
 const GIST_URL   = `https://api.github.com/gists/${GIST_ID}`;
 
-const HEADERS = {
-  'Authorization': `token ${GIST_TOKEN}`,
-  'Accept': 'application/vnd.github.v3+json',
-  'User-Agent': 'ATG-Dashboard/1.0',
-};
+function getHeaders() {
+  return {
+    'Authorization': `token ${GIST_TOKEN}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'ATG-Dashboard/1.0',
+  };
+}
 
 async function readGist() {
-  const resp = await fetch(GIST_URL, { headers: HEADERS });
+  const resp = await fetch(GIST_URL, { headers: getHeaders() });
   if (!resp.ok) throw new Error('Gist read failed: ' + resp.status);
   const data = await resp.json();
   const content = data.files[GIST_FILE]?.content || '{"flags":{}}';
@@ -27,7 +29,7 @@ async function readGist() {
 async function writeGist(record) {
   const resp = await fetch(GIST_URL, {
     method: 'PATCH',
-    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    headers: { ...getHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
       files: { [GIST_FILE]: { content: JSON.stringify(record) } }
     }),
@@ -41,6 +43,16 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+
+  // Diagnostic mode
+  if (req.query.debug) {
+    return res.status(200).json({
+      hasId:    !!GIST_ID,
+      hasToken: !!GIST_TOKEN,
+      idPrefix: GIST_ID ? GIST_ID.substring(0, 8) : null,
+      tokenPrefix: GIST_TOKEN ? GIST_TOKEN.substring(0, 6) : null,
+    });
+  }
 
   if (!GIST_ID || !GIST_TOKEN) {
     if (req.method === 'GET') return res.status(200).json({});
@@ -77,7 +89,7 @@ export default async function handler(req, res) {
 
   } catch(e) {
     console.error('Gist error:', e);
-    if (req.method === 'GET') return res.status(200).json({});
+    if (req.method === 'GET') return res.status(200).json({ error: e.message });
     return res.status(200).json({ ok: false, error: e.message });
   }
 }
