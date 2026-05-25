@@ -5,8 +5,8 @@ const corsHeaders = {
   'Cache-Control': 'no-store',
 };
 
-const GIST_ID    = '2881d8cf8a9645f55f9b8d0c8d1dc120';
-const GIST_TOKEN = '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';
+const GIST_ID    = process.env.GITHUB_GIST_ID;
+const GIST_TOKEN = process.env.GITHUB_GIST_TOKEN;
 const GIST_FILE  = 'flags.json';
 const GIST_URL   = `https://api.github.com/gists/${GIST_ID}`;
 
@@ -41,6 +41,11 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+
+  if (!GIST_ID || !GIST_TOKEN) {
+    if (req.method === 'GET') return res.status(200).json({});
+    return res.status(200).json({ ok: false, error: 'Gist not configured' });
+  }
 
   const key = req.query.key;
 
