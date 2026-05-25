@@ -2102,11 +2102,7 @@ function buildOrderContent(title, productFilter) {
     const siteTanks = (result.tanks || []).filter(t =>
       tankNeedsOrder(t) && productFilter(t.fuelType)
     );
-    const orderableTanks = siteTanks.filter(t =>
-      isFuelProduct(t.fuelType)
-        ? recommendOrder(t.vol, t.fuelType, t.capacityCap, t.ullage) > 0
-        : (t.ullage || 0) > 0
-    );
+    const orderableTanks = siteTanks.filter(t => (t.ullage || 0) > 0);
     if (orderableTanks.length === 0) return;
 
     anyOrders = true;
@@ -2117,22 +2113,27 @@ function buildOrderContent(title, productFilter) {
 
     orderableTanks.forEach(t => {
       const inStr       = t.grossHeight ? " (" + t.grossHeight + " in)" : "";
+      const compartmentAmt = recommendOrder(t.vol, t.fuelType, t.capacityCap, t.ullage);
+      // If no compartment fits, show actual ullage as the need — dispatcher can split load
       const recommended = isFuelProduct(t.fuelType)
-        ? recommendOrder(t.vol, t.fuelType, t.capacityCap, t.ullage)
+        ? (compartmentAmt > 0 ? compartmentAmt : t.ullage)
         : t.ullage;
+      const isPartialLoad = isFuelProduct(t.fuelType) && compartmentAmt === 0;
       const recFmt  = recommended.toLocaleString();
       const tankRef = "Tank " + t.id + " - " + t.fuelType;
       const current = "Current level " + t.vol.toLocaleString() + " G" + inStr;
 
       // HTML line — caps for quantity and product
+      const noteStr = isPartialLoad ? " <em style='color:#ff9800;font-size:10px'>(under min compartment — advise vendor)</em>" : "";
       html += "<div class='order-tank-line'>"
         + recFmt + " G of " + t.fuelType.toUpperCase()
-        + " for " + tankRef + ", " + current
+        + " for " + tankRef + ", " + current + noteStr
         + "</div>";
 
       // Plain text line
+      const noteTxt = isPartialLoad ? " (under min compartment — advise vendor)" : "";
       plainText += "\t" + recFmt + " G of " + t.fuelType.toUpperCase()
-        + " for " + tankRef + ", " + current + "\n";
+        + " for " + tankRef + ", " + current + noteTxt + "\n";
     });
 
     html      += "</div>";
