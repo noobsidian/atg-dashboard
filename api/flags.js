@@ -5,39 +5,34 @@ const corsHeaders = {
   'Cache-Control': 'no-store',
 };
 
-const BIN_ID     = '6a0e0b4b6877513b27a5985b';
-const MASTER_KEY = '$2a$10$rkNwXnIOnckRir5fSmQnieRdRisUG4POtdRQ2yQJRu93ZVUR0PTbC';
-const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const GIST_ID    = '2881d8cf8a9645f55f9b8d0c8d1dc120';
+const GIST_TOKEN = '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';
+const GIST_FILE  = 'flags.json';
+const GIST_URL   = `https://api.github.com/gists/${GIST_ID}`;
 
-async function readBin() {
-  const resp = await fetch(BIN_URL + '/latest', {
-    headers: { 'X-Master-Key': MASTER_KEY }
-  });
-  if (!resp.ok) throw new Error('Read failed: ' + resp.status);
+const HEADERS = {
+  'Authorization': `token ${GIST_TOKEN}`,
+  'Accept': 'application/vnd.github.v3+json',
+  'User-Agent': 'ATG-Dashboard/1.0',
+};
+
+async function readGist() {
+  const resp = await fetch(GIST_URL, { headers: HEADERS });
+  if (!resp.ok) throw new Error('Gist read failed: ' + resp.status);
   const data = await resp.json();
-  return data.record || { flags: {} };
+  const content = data.files[GIST_FILE]?.content || '{"flags":{}}';
+  return JSON.parse(content);
 }
 
-async function writeBin(record, retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    // Always re-read before writing to avoid overwriting concurrent changes
-    let current;
-    try { current = await readBin(); } catch(e) { current = { flags: {} }; }
-    // Merge incoming record flags over current flags
-    const merged = { flags: { ...current.flags, ...record.flags } };
-    
-    const resp = await fetch(BIN_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': MASTER_KEY,
-      },
-      body: JSON.stringify(merged),
-    });
-    if (resp.ok) return;
-    if (i < retries - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
-  }
-  throw new Error('Write failed after retries');
+async function writeGist(record) {
+  const resp = await fetch(GIST_URL, {
+    method: 'PATCH',
+    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      files: { [GIST_FILE]: { content: JSON.stringify(record) } }
+    }),
+  });
+  if (!resp.ok) throw new Error('Gist write failed: ' + resp.status);
 }
 
 export default async function handler(req, res) {
@@ -51,37 +46,32 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const record = await readBin();
-      if (key) {
-        return res.status(200).json({ key, value: record.flags[key] || null });
-      }
+      const record = await readGist();
+      if (key) return res.status(200).json({ key, value: record.flags?.[key] || null });
       return res.status(200).json(record.flags || {});
     }
 
     if (req.method === 'POST') {
       const body   = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      // writeBin does a fresh read internally so just pass the single flag to merge
-      await writeBin({ flags: { [key]: { flagDate: body.flagDate, orderedBy: body.orderedBy || 'User' } } });
+      const record = await readGist();
+      record.flags        = record.flags || {};
+      record.flags[key]   = { flagDate: body.flagDate, orderedBy: body.orderedBy || 'User' };
+      await writeGist(record);
       return res.status(200).json({ ok: true });
     }
 
     if (req.method === 'DELETE') {
-      const record = await readBin();
+      const record = await readGist();
+      record.flags = record.flags || {};
       delete record.flags[key];
-      // Pass full record for delete since we need to remove a key
-      const resp = await fetch(BIN_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-Master-Key': MASTER_KEY },
-        body: JSON.stringify(record),
-      });
-      if (!resp.ok) throw new Error('Delete failed: ' + resp.status);
+      await writeGist(record);
       return res.status(200).json({ ok: true });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
 
   } catch(e) {
-    console.error('JSONBin error:', e);
+    console.error('Gist error:', e);
     if (req.method === 'GET') return res.status(200).json({});
     return res.status(200).json({ ok: false, error: e.message });
   }
