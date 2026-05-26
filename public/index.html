@@ -1174,36 +1174,47 @@ async function fetchSite(site) {
 // ── HTML builders ──────────────────────────────────────────────────────────
 
 function estimateDailyConsumption(t) {
-  // Use delivery history to estimate daily consumption
-  // Need at least 2 deliveries to calculate consumption between them
-  if (!t.deliveryHistory || t.deliveryHistory.length < 2) return null;
+  const history = t.deliveryHistory || [];
 
-  const rates = [];
-  for (let i = 0; i < t.deliveryHistory.length - 1 && i < 4; i++) {
-    const newer = t.deliveryHistory[i];     // more recent delivery
-    const older = t.deliveryHistory[i + 1]; // previous delivery
-
-    // Consumption = end of older delivery to start of newer delivery
-    const volAtStartOfNewer = newer.startGrossVol || 0;
-    const volAtEndOfOlder   = older.endGrossVol   || 0;
-    if (volAtEndOfOlder <= 0 || volAtStartOfNewer <= 0) continue;
-
-    // Parse dates
-    const newerDate = new Date(newer.dateOnly);
-    const olderDate = new Date(older.dateOnly);
-    const daysBetween = (newerDate - olderDate) / 86400000;
-    if (daysBetween <= 0) continue;
-
-    const consumed = volAtEndOfOlder - volAtStartOfNewer;
-    if (consumed <= 0) continue; // skip if volume went up (another delivery in between)
-
-    const rate = consumed / daysBetween;
-    if (rate > 0 && rate < 10000) rates.push(rate); // sanity check
+  // Method 1: Use inter-delivery consumption (2+ deliveries)
+  if (history.length >= 2) {
+    const rates = [];
+    for (let i = 0; i < history.length - 1 && i < 4; i++) {
+      const newer = history[i];
+      const older = history[i + 1];
+      const volAtStartOfNewer = newer.startGrossVol || 0;
+      const volAtEndOfOlder   = older.endGrossVol   || 0;
+      if (volAtEndOfOlder <= 0 || volAtStartOfNewer <= 0) continue;
+      const newerDate   = new Date(newer.dateOnly);
+      const olderDate   = new Date(older.dateOnly);
+      const daysBetween = (newerDate - olderDate) / 86400000;
+      if (daysBetween <= 0) continue;
+      const consumed = volAtEndOfOlder - volAtStartOfNewer;
+      if (consumed <= 0) continue;
+      const rate = consumed / daysBetween;
+      if (rate > 0 && rate < 10000) rates.push(rate);
+    }
+    if (rates.length > 0) {
+      const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+      return { dailyRate: Math.round(avgRate), periods: rates.length, method: "inter-delivery" };
+    }
   }
 
-  if (rates.length === 0) return null;
-  const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
-  return { dailyRate: Math.round(avgRate), periods: rates.length };
+  // Method 2: Single delivery fallback — use current vol vs last delivery end vol
+  if (history.length >= 1 && t.vol != null) {
+    const last = history[0];
+    const endVol = last.endGrossVol || 0;
+    if (endVol <= 0) return null;
+    const daysSince = (Date.now() - new Date(last.dateOnly).getTime()) / 86400000;
+    if (daysSince < 1) return null; // too soon to calculate
+    const consumed = endVol - t.vol;
+    if (consumed <= 0) return null; // volume went up — another delivery must have happened
+    const rate = consumed / daysSince;
+    if (rate <= 0 || rate >= 10000) return null;
+    return { dailyRate: Math.round(rate), periods: 1, method: "since-last-delivery" };
+  }
+
+  return null;
 }
 
 function buildDeliveryTooltip(t) {
@@ -1222,8 +1233,11 @@ function buildDeliveryTooltip(t) {
   const est = estimateDailyConsumption(t);
   if (est) {
     const threeDayEst = Math.round(est.dailyRate * 3);
+    const methodNote  = est.method === "since-last-delivery"
+      ? "since last delivery"
+      : est.periods + " period" + (est.periods !== 1 ? "s" : "");
     tip += "\n\nEst. 3-day usage: ~" + threeDayEst.toLocaleString() + " G"
-      + "\n  (" + est.dailyRate.toLocaleString() + " G/day avg, " + est.periods + " period" + (est.periods !== 1 ? "s" : "") + ")";
+      + "\n  (" + est.dailyRate.toLocaleString() + " G/day avg, " + methodNote + ")";
   }
 
   return 'data-tooltip="' + tip.replace(/"/g, "&quot;") + '"';
