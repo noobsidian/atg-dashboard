@@ -11,9 +11,10 @@ const SITES = [
   { name: "Neuse River NRRF RW",           addr: "8500 Battle Bridge Rd",   url: "http://63.46.75.227:10001" },
 ];
 
-const TIMEOUT_MS = 20000;
+const TIMEOUT_MS = 28000; // increased from 20s
 
-function fetchUrl(url) {
+function fetchUrl(url, timeoutMs) {
+  const t = timeoutMs || TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http;
     const req = lib.get(url, { headers: { 'User-Agent': 'ATG-Dashboard/1.0' } }, (res) => {
@@ -21,7 +22,7 @@ function fetchUrl(url) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => resolve(data));
     });
-    req.setTimeout(TIMEOUT_MS, () => { req.destroy(); reject(new Error('Timeout')); });
+    req.setTimeout(t, () => { req.destroy(); reject(new Error('Timeout after ' + t + 'ms')); });
     req.on('error', reject);
   });
 }
@@ -29,16 +30,23 @@ function fetchUrl(url) {
 async function fetchSite(site) {
   const result = { name: site.name, addr: site.addr, url: site.url, tanks: [], alarms: [], error: null, cgiData: null, invHtml: null };
   try {
-    const [cgiRaw, invHtml, alarmRaw] = await Promise.all([
+    // Fetch CGI and inventory in parallel — alarms separately with shorter timeout
+    const [cgiRaw, invHtml] = await Promise.all([
       fetchUrl(site.url + '/cgi-bin/getTankData.cgi?dataset=dynData'),
       fetchUrl(site.url + '/php/Inventory.php'),
-      fetchUrl(site.url + '/php/getAlarms.php?current=1').catch(() => '[]'),
     ]);
 
     try { result.cgiData = JSON.parse(cgiRaw); } catch(e) { throw new Error('Invalid JSON from CGI'); }
     result.invHtml = invHtml;
-    try { result.alarms = JSON.parse(alarmRaw); } catch(e) { result.alarms = []; }
     if (!result.cgiData || !result.cgiData.tankData) throw new Error('No tank data');
+
+    // Fetch alarms separately — don't let a slow alarm response fail the whole site
+    try {
+      const alarmRaw = await fetchUrl(site.url + '/php/getAlarms.php?current=1', 10000);
+      result.alarms = JSON.parse(alarmRaw);
+    } catch(e) {
+      result.alarms = []; // alarms unavailable — tank data still shows
+    }
 
   } catch(e) {
     result.error = e.message;
@@ -53,7 +61,6 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  // Each site handled independently — one failure won't crash the whole response
   const results = await Promise.all(SITES.map(fetchSite));
   res.status(200).json(results);
 };
