@@ -692,6 +692,18 @@ body.light .order-flag-active { border-color: #e65100 !important; color: #e65100
 
 
 
+
+.copy-btn-contract {
+  border-color: #00bcd4 !important;
+  color: #00bcd4 !important;
+}
+.copy-btn-contract:hover {
+  background: #002a2e !important;
+  border-color: #00bcd4 !important;
+  color: #80deea !important;
+}
+body.light .copy-btn-contract { color: #00838f !important; border-color: #00838f !important; }
+body.light .copy-btn-contract:hover { background: #e0f7fa !important; }
 </style>
 </head>
 <body>
@@ -735,6 +747,7 @@ body.light .order-flag-active { border-color: #e65100 !important; color: #e65100
   <button id="copy-alarms-btn" class="copy-btn">&#128203; Copy Alarms</button>
   <button id="copy-fuel-order-btn" class="copy-btn copy-btn-order">&#128203; Copy Fuel Order</button>
   <button id="copy-lube-order-btn" class="copy-btn copy-btn-lube">&#128203; Copy Lube/Fluid Order</button>
+  <button id="copy-contract-order-btn" class="copy-btn copy-btn-contract">&#128203; Copy Contract Order</button>
   <span id="copy-confirm" class="copy-confirm"></span>
   </div>
 </div>
@@ -2275,3 +2288,107 @@ document.getElementById("order-modal-copy").addEventListener("click", function()
 </script>
 </body>
 </html>
+<script>
+// ── STC 1510B Contract Order ───────────────────────────────────────────────
+
+const CONTRACT_INFO = {
+  number:      "STC 1510B",
+  name:        "Fuels",
+  zone:        "8",
+  zoneArea:    "Wake County / Raleigh NC",
+  vendor:      "James River Solutions",
+  pricingUrl:  "https://www.doa.nc.gov/divisions/purchase-contract/weekly-fuel-prices",
+  bulkMin:     6000,  // gallons — bulk transport threshold
+  tankWagonMin: 500,  // gallons — minimum order
+};
+
+function getDeliveryType(ullage) {
+  if (ullage >= CONTRACT_INFO.bulkMin)      return "BULK TRANSPORT";
+  if (ullage >= CONTRACT_INFO.tankWagonMin) return "TANK-WAGON";
+  return null; // below minimum
+}
+
+function buildContractOrderContent() {
+  const timestamp = orderTimestamp();
+  const header = "COR FLEET ATG CONTRACT ORDER (" + CONTRACT_INFO.number + ") — " + timestamp;
+  const subheader = "Zone " + CONTRACT_INFO.zone + " \u2014 " + CONTRACT_INFO.zoneArea;
+
+  let html = "<div class='order-modal-header'>"
+    + header + "<br>"
+    + subheader + "<br>"
+    + "<strong style='color:#00bcd4'>" + CONTRACT_INFO.vendor + "</strong>"
+    + " &nbsp;\u00b7&nbsp; "
+    + "<a href='" + CONTRACT_INFO.pricingUrl + "' target='_blank' style='color:#00bcd4;font-size:11px'>Weekly Pricing &#8599;</a>"
+    + "<br><span style='color:#ff9800;font-size:10px'>&#9888; Verify current Zone 8 vendor at weekly pricing link before ordering</span>"
+    + "</div>";
+
+  let plainText = header + "\n"
+    + subheader + "\n"
+    + "Vendor: " + CONTRACT_INFO.vendor + " (verify at weekly pricing)\n"
+    + "Pricing: " + CONTRACT_INFO.pricingUrl + "\n\n";
+
+  let anyOrders = false;
+
+  allSiteResults.forEach(result => {
+    if (!result || result.error) return;
+
+    const siteTanks = (result.tanks || []).filter(t => {
+      if (!t) return false;
+      if (t.override && t.override.isWasteOil) return false;
+      if (!t.vol || t.vol === 0) return false;
+      if (!isFuelProduct(t.fuelType)) return false;
+      // Exclude ON ORDER tanks
+      const flagDate = getOrderFlag(t._siteUrl || "", String(t.id));
+      if (flagDate) return false;
+      // Must have at least tank-wagon minimum ullage
+      return (t.ullage || 0) >= CONTRACT_INFO.tankWagonMin;
+    });
+
+    if (siteTanks.length === 0) return;
+    anyOrders = true;
+
+    const siteLine = result.name + ", " + result.addr;
+    html += "<div class='order-site-block'>";
+    html += "<div class='order-site-name'>" + siteLine + "</div>";
+    plainText += siteLine.toUpperCase() + "\n";
+
+    siteTanks.forEach(t => {
+      const delivType = getDeliveryType(t.ullage);
+      if (!delivType) return;
+
+      const typeColor = delivType === "BULK TRANSPORT" ? "#00bcd4" : "#80deea";
+      const inStr     = t.grossHeight ? " (" + t.grossHeight + " in)" : "";
+
+      html += "<div class='order-tank-line'>"
+        + "Tank " + t.id + " - " + t.fuelType.toUpperCase()
+        + " &nbsp;|&nbsp; Ullage: <strong>" + t.ullage.toLocaleString() + " G</strong>"
+        + " &nbsp;|&nbsp; Current: " + t.vol.toLocaleString() + " G" + inStr
+        + " &nbsp;|&nbsp; <span style='color:" + typeColor + ";font-weight:bold'>" + delivType + "</span>"
+        + "</div>";
+
+      plainText += "\tTank " + t.id + " - " + t.fuelType.toUpperCase()
+        + " | Ullage: " + t.ullage.toLocaleString() + " G"
+        + " | Current: " + t.vol.toLocaleString() + " G" + inStr
+        + " | " + delivType + "\n";
+    });
+
+    html += "</div>";
+    plainText += "\n";
+  });
+
+  if (!anyOrders) {
+    html += "<div class='order-empty'>&#10003; No tanks meet minimum order requirements.</div>";
+    plainText += "No tanks meet minimum order requirements (" + CONTRACT_INFO.tankWagonMin + "G minimum).\n";
+  }
+
+  return { html, plainText };
+}
+
+document.getElementById("copy-contract-order-btn").addEventListener("click", function() {
+  const { html, plainText } = buildContractOrderContent();
+  currentOrderText = plainText;
+  document.getElementById("order-modal-title").textContent = "STC 1510B Contract Order";
+  document.getElementById("order-modal-body").innerHTML = html;
+  document.getElementById("order-modal").style.display = "flex";
+});
+</script>
