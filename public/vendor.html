@@ -8,7 +8,6 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-height: 100vh; }
 
-/* ── Top bar ─────────────────────────────────────────────────────────── */
 .top-bar {
   background: #0a1628;
   padding: 12px 20px;
@@ -32,7 +31,6 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 #refresh-btn:hover { background: #1f3b73; }
 #refresh-btn:disabled { opacity: 0.5; cursor: default; }
 
-/* ── Summary bar ─────────────────────────────────────────────────────── */
 .summary {
   display: flex; gap: 10px; padding: 14px 20px; flex-wrap: wrap;
   background: #16213e; border-bottom: 1px solid #324a5f;
@@ -41,7 +39,6 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 .sum-val { font-size: 22px; font-weight: bold; color: #fff; }
 .sum-lbl { font-size: 11px; color: #b0b0b0; margin-top: 2px; }
 
-/* ── Copy bar ────────────────────────────────────────────────────────── */
 .copy-bar {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 20px;
@@ -62,7 +59,6 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 }
 .copy-confirm.show { opacity: 1; }
 
-/* ── Site grid ───────────────────────────────────────────────────────── */
 .site-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
@@ -84,7 +80,6 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 .b-error   { background: #b71c1c; color: #ef9a9a; }
 .b-low     { background: #7e3d00; color: #ffcc80; }
 
-/* ── Tank rows ───────────────────────────────────────────────────────── */
 .tank-list { padding: 6px 10px; }
 .tank-row {
   display: grid;
@@ -97,7 +92,6 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 .t-name { font-size: 12px; font-weight: bold; color: #03a9f4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-type { font-size: 11px; color: #b0b0b0; }
 
-/* LOW badge on tank */
 .low-badge {
   display: inline-block; font-size: 9px; font-weight: bold;
   background: #7e3d00; color: #ffcc80;
@@ -141,8 +135,8 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 .t-sep { color: #4a6a8a; margin: 0 3px; flex-shrink: 0; }
 .t-in  { font-size: 10px; color: #8aabcc; white-space: nowrap; flex-shrink: 0; }
 
-.alarm-row { background: rgba(244,67,54,0.08); }
 .warn-row  { background: rgba(255,152,0,0.08); }
+.alarm-row { background: rgba(244,67,54,0.08); }
 .waste-oil-row { border-top: 1px dashed #324a5f; margin-top: 4px; }
 
 .placeholder { padding: 18px; text-align: center; font-size: 12px; color: #b0b0b0; }
@@ -150,7 +144,6 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 .pulse { animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-/* ── Footer ──────────────────────────────────────────────────────────── */
 .page-footer {
   text-align: center;
   padding: 16px;
@@ -196,45 +189,36 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 
 <script>
 
-const PROXY_URL = "/api/tanks";
+// Vendor proxy — ?vendor=1 strips IPs and alarm details server-side
+const PROXY_URL = "/api/tanks?vendor=1";
 const REFRESH_SECONDS = 300;
 let refreshTimer = null;
 let countTimer   = null;
 let allSiteResults = [];
 
-// ── Site / probe config (mirrors index.html — no IPs exposed in UI) ────────
-
-const SITES = [
-  { name: "Central Operations FMO",        addr: "2540 Westinghouse Blvd", url: "http://63.46.75.214:10001" },
-  { name: "Northeast Remote Ops FMO",      addr: "7702 Burwell St",        url: "http://166.146.80.90:10001" },
-  { name: "Heavy Equipment Shop FMO",      addr: "4120 New Bern Ave",      url: "http://63.46.75.226:10001" },
-  { name: "Public Utilities Field Ops RW", addr: "3304 Lake Woodard Dr",   url: "http://63.46.75.230:10001" },
-  { name: "Wilders Grove SWS",             addr: "610 Beacon Lake Dr",     url: "http://63.46.75.218:10001" },
-  { name: "Marsh Creek PRCR",              addr: "4225 Daly Rd",           url: "http://63.46.75.228:10001" },
-  { name: "Neuse River NRRF RW",           addr: "8500 Battle Bridge Rd",  url: "http://63.46.75.227:10001" },
-];
+// ── Probe lengths (no IPs exposed in DOM — keys never rendered) ────────────
 
 const PROBE_LENGTHS = {
-  "http://63.46.75.214:10001|1": 120, "http://63.46.75.214:10001|2": 120,
-  "http://63.46.75.214:10001|3": 120, "http://63.46.75.214:10001|4": 120,
-  "http://63.46.75.214:10001|5": 120, "http://63.46.75.214:10001|6": 82,
-  "http://166.146.80.90:10001|1": 96, "http://166.146.80.90:10001|2": 96,
-  "http://166.146.80.90:10001|3": 96, "http://166.146.80.90:10001|4": 96,
-  "http://166.146.80.90:10001|5": 82,
-  "http://63.46.75.226:10001|1": 96,  "http://63.46.75.226:10001|2": 96,
-  "http://63.46.75.226:10001|3": 96,  "http://63.46.75.226:10001|4": 96,
-  "http://63.46.75.226:10001|5": 96,  "http://63.46.75.226:10001|6": 96,
-  "http://63.46.75.226:10001|7": 48,
-  "http://63.46.75.230:10001|1": 124, "http://63.46.75.230:10001|2": 124,
-  "http://63.46.75.230:10001|3": 124,
-  "http://63.46.75.218:10001|1": 132, "http://63.46.75.218:10001|2": 82,
-  "http://63.46.75.228:10001|1": 78,  "http://63.46.75.228:10001|2": 74,
-  "http://63.46.75.228:10001|3": 74,
-  "http://63.46.75.227:10001|1": 96,
+  "Central Operations FMO|1": 120, "Central Operations FMO|2": 120,
+  "Central Operations FMO|3": 120, "Central Operations FMO|4": 120,
+  "Central Operations FMO|5": 120, "Central Operations FMO|6": 82,
+  "Northeast Remote Ops FMO|1": 96, "Northeast Remote Ops FMO|2": 96,
+  "Northeast Remote Ops FMO|3": 96, "Northeast Remote Ops FMO|4": 96,
+  "Northeast Remote Ops FMO|5": 82,
+  "Heavy Equipment Shop FMO|1": 96, "Heavy Equipment Shop FMO|2": 96,
+  "Heavy Equipment Shop FMO|3": 96, "Heavy Equipment Shop FMO|4": 96,
+  "Heavy Equipment Shop FMO|5": 96, "Heavy Equipment Shop FMO|6": 96,
+  "Heavy Equipment Shop FMO|7": 48,
+  "Public Utilities Field Ops RW|1": 124, "Public Utilities Field Ops RW|2": 124,
+  "Public Utilities Field Ops RW|3": 124,
+  "Wilders Grove SWS|1": 132, "Wilders Grove SWS|2": 82,
+  "Marsh Creek PRCR|1": 78, "Marsh Creek PRCR|2": 74, "Marsh Creek PRCR|3": 74,
+  "Neuse River NRRF RW|1": 96,
 };
 
-const TANK_OVERRIDES = {
-  "http://63.46.75.226:10001|2": { isWasteOil: true, highAlertPct: 80, sortLast: true }
+// Waste oil override — keyed by site name + tank id, no IPs
+const WASTE_OIL_TANKS = {
+  "Heavy Equipment Shop FMO|2": { isWasteOil: true, highAlertPct: 80, sortLast: true }
 };
 
 const PRODUCT_NAME_MAP = {
@@ -244,8 +228,8 @@ const PRODUCT_NAME_MAP = {
 };
 
 function normalizeFuelType(name) { return PRODUCT_NAME_MAP[name] || name; }
-function getProbeLength(siteUrl, tankId) { return PROBE_LENGTHS[siteUrl + "|" + tankId] || null; }
-function getTankOverride(siteUrl, tankId) { return TANK_OVERRIDES[siteUrl + "|" + tankId] || null; }
+function getProbeLength(siteName, tankId) { return PROBE_LENGTHS[siteName + "|" + tankId] || null; }
+function getTankOverride(siteName, tankId) { return WASTE_OIL_TANKS[siteName + "|" + tankId] || null; }
 
 // ── Color helpers ──────────────────────────────────────────────────────────
 
@@ -261,7 +245,7 @@ function wasteOilBarColor(pct, alertPct) {
   return "#47C13C";
 }
 
-// ── Inventory / fuel type parser (same logic as index.html) ───────────────
+// ── Inventory parser ───────────────────────────────────────────────────────
 
 function parseFuelTypes(html) {
   const fuelMap = {};
@@ -281,15 +265,6 @@ function parseFuelTypes(html) {
   return fuelMap;
 }
 
-function parseProxyAlarms(data) {
-  if (!Array.isArray(data)) return [];
-  return data.map(item => ({
-    description: item.alarmdesc || item.catdesc || "Alarm",
-    severity: ((item.catdesc || "").toLowerCase().includes("warn")) ? "warning" : "alarm",
-    tankNum: String(item.itemnum || ""),
-  }));
-}
-
 // ── Inches string ──────────────────────────────────────────────────────────
 
 function inchesStr(t) {
@@ -303,15 +278,14 @@ function inchesStr(t) {
     + "<span class='t-in'>" + t.grossHeight + "\"</span>";
 }
 
-// ── Tank row builder (vendor — no flags, no tooltips, no alarm details) ────
+// ── Tank row builder ───────────────────────────────────────────────────────
 
 function buildTankRow(t) {
   const ov = t.override;
 
-  // Waste oil tank
   if (ov && ov.isWasteOil) {
-    const col    = wasteOilBarColor(t.pct, ov.highAlertPct);
-    const isHigh = t.pct >= ov.highAlertPct;
+    const col     = wasteOilBarColor(t.pct, ov.highAlertPct);
+    const isHigh  = t.pct >= ov.highAlertPct;
     const pctSafe = Math.min(t.pct, 100);
     return "<div class='tank-row waste-oil-row" + (isHigh ? " alarm-row" : "") + "'>"
       + "<div>"
@@ -334,11 +308,9 @@ function buildTankRow(t) {
       + "</div>";
   }
 
-  // Normal fuel tank
   const col     = t.fuelColor || barColor(t.pct);
   const isLow   = t.pct < 25;
   const pctSafe = Math.min(t.pct, 100);
-
   return "<div class='tank-row" + (isLow ? " warn-row" : "") + "'>"
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType
@@ -363,23 +335,15 @@ function buildTankRow(t) {
 // ── Card builder ───────────────────────────────────────────────────────────
 
 function buildCardHTML(site) {
-  const hasError = !!site.error;
-  const hasData  = !hasError && site.tanks.length > 0;
-  const hasLow   = (site.tanks || []).some(t =>
-    !t.override?.isWasteOil && t.pct < 25
-  );
-  const wasteHigh = (site.tanks || []).some(t =>
-    t.override?.isWasteOil && t.pct >= t.override.highAlertPct
-  );
+  const hasError  = !!site.error;
+  const hasData   = !hasError && site.tanks.length > 0;
+  const hasLow    = (site.tanks || []).some(t => !t.override?.isWasteOil && t.pct < 25);
+  const wasteHigh = (site.tanks || []).some(t => t.override?.isWasteOil && t.pct >= t.override.highAlertPct);
 
   let badgeClass, badgeText;
-  if (hasError) {
-    badgeClass = "b-error"; badgeText = "Offline";
-  } else if (hasLow || wasteHigh) {
-    badgeClass = "b-low"; badgeText = "Low Fuel";
-  } else {
-    badgeClass = "b-ok"; badgeText = "Online (" + site.tanks.length + " tanks)";
-  }
+  if (hasError)            { badgeClass = "b-error"; badgeText = "Offline"; }
+  else if (hasLow || wasteHigh) { badgeClass = "b-low";  badgeText = "Low Fuel"; }
+  else                     { badgeClass = "b-ok";   badgeText = "Online (" + site.tanks.length + " tanks)"; }
 
   let html = "<div class='site-hdr'>"
     + "<div>"
@@ -389,15 +353,10 @@ function buildCardHTML(site) {
     + "<span class='badge " + badgeClass + "'>" + badgeText + "</span>"
     + "</div>";
 
-  if (hasError) {
-    html += "<div class='err-msg'>&#9888; " + site.error + "</div>";
-  } else if (hasData) {
-    html += "<div class='tank-list'>";
-    site.tanks.forEach(t => { html += buildTankRow(t); });
-    html += "</div>";
-  } else {
-    html += "<div class='placeholder'>No tank data received</div>";
-  }
+  if (hasError)       html += "<div class='err-msg'>&#9888; " + site.error + "</div>";
+  else if (hasData)   { html += "<div class='tank-list'>"; site.tanks.forEach(t => { html += buildTankRow(t); }); html += "</div>"; }
+  else                html += "<div class='placeholder'>No tank data received</div>";
+
   return html;
 }
 
@@ -415,15 +374,15 @@ function buildCopyText() {
     if (!result || result.error) return;
     text += result.name + ", " + result.addr + "\n";
     (result.tanks || []).forEach(t => {
-      const label    = ("Tank " + t.id + " - " + t.fuelType).padEnd(30);
-      const inches   = t.grossHeight ? t.grossHeight + "\"" : "—";
-      const probe    = t.probeLength ? " / " + t.probeLength + "\"" : "";
-      const inStr    = (inches + probe).padEnd(12);
-      const volStr   = (t.vol.toLocaleString() + " G").padEnd(10);
-      const ullStr   = "Ullage: " + t.ullage.toLocaleString() + " G";
-      const lowFlag  = (!t.override?.isWasteOil && t.pct < 25) ? " [LOW]" : "";
-      const drainflag = (t.override?.isWasteOil && t.pct >= t.override.highAlertPct) ? " [DRAIN NEEDED]" : "";
-      text += "  " + label + inStr + " | " + volStr + " | " + ullStr + lowFlag + drainflag + "\n";
+      const label   = ("Tank " + t.id + " - " + t.fuelType).padEnd(30);
+      const inches  = t.grossHeight ? t.grossHeight + "\"" : "—";
+      const probe   = t.probeLength ? " / " + t.probeLength + "\"" : "";
+      const inStr   = (inches + probe).padEnd(12);
+      const volStr  = (t.vol.toLocaleString() + " G").padEnd(10);
+      const ullStr  = "Ullage: " + t.ullage.toLocaleString() + " G";
+      const lowFlag   = (!t.override?.isWasteOil && t.pct < 25) ? " [LOW]" : "";
+      const drainFlag = (t.override?.isWasteOil && t.pct >= t.override.highAlertPct) ? " [DRAIN NEEDED]" : "";
+      text += "  " + label + inStr + " | " + volStr + " | " + ullStr + lowFlag + drainFlag + "\n";
     });
     text += "\n";
   });
@@ -431,38 +390,29 @@ function buildCopyText() {
 }
 
 document.getElementById("copy-levels-btn").addEventListener("click", function() {
-  const text    = buildCopyText();
   const confirm = document.getElementById("copy-confirm");
-  navigator.clipboard.writeText(text).then(() => {
+  navigator.clipboard.writeText(buildCopyText()).then(() => {
     confirm.classList.add("show");
     setTimeout(() => confirm.classList.remove("show"), 2500);
   });
 });
 
-// ── Countdown ─────────────────────────────────────────────────────────────
+// ── Countdown & auto-refresh ───────────────────────────────────────────────
 
 function startAutoRefresh() {
   clearInterval(refreshTimer);
   clearInterval(countTimer);
   let countdown = REFRESH_SECONDS;
   updateCountdown(countdown);
-  countTimer    = setInterval(() => {
-    countdown--;
-    updateCountdown(countdown);
-    if (countdown <= 0) clearInterval(countTimer);
-  }, 1000);
+  countTimer   = setInterval(() => { countdown--; updateCountdown(countdown); if (countdown <= 0) clearInterval(countTimer); }, 1000);
   refreshTimer = setInterval(fetchAll, REFRESH_SECONDS * 1000);
 }
 
 function updateCountdown(s) {
   const el = document.getElementById("auto-lbl");
   if (!el) return;
-  if (s >= 60) {
-    const m = Math.floor(s / 60), sec = s % 60;
-    el.textContent = "Refresh in " + m + "m" + (sec > 0 ? " " + sec + "s" : "");
-  } else {
-    el.textContent = "Refresh in " + s + "s";
-  }
+  if (s >= 60) { const m = Math.floor(s / 60), sec = s % 60; el.textContent = "Refresh in " + m + "m" + (sec > 0 ? " " + sec + "s" : ""); }
+  else         { el.textContent = "Refresh in " + s + "s"; }
 }
 
 // ── Main fetch ─────────────────────────────────────────────────────────────
@@ -470,24 +420,13 @@ function updateCountdown(s) {
 async function fetchAll() {
   clearInterval(refreshTimer);
   clearInterval(countTimer);
-  const btn = document.getElementById("refresh-btn");
+  const btn  = document.getElementById("refresh-btn");
   btn.disabled = true;
   btn.textContent = "Loading\u2026";
 
-  allSiteResults = new Array(SITES.length);
+  allSiteResults = [];
   const grid = document.getElementById("site-grid");
   grid.innerHTML = "";
-
-  SITES.forEach((s, i) => {
-    const card = document.createElement("div");
-    card.className = "site-card";
-    card.id = "card-" + i;
-    card.innerHTML = "<div class='site-hdr'>"
-      + "<div><div class='site-name'>" + s.name + "</div><div class='site-addr'>" + s.addr + "</div></div>"
-      + "<span class='badge b-loading pulse'>Loading\u2026</span>"
-      + "</div><div class='placeholder'>Fetching data\u2026</div>";
-    grid.appendChild(card);
-  });
 
   let proxyResults;
   try {
@@ -498,20 +437,15 @@ async function fetchAll() {
     if (!resp.ok) throw new Error("Proxy error " + resp.status);
     proxyResults = await resp.json();
   } catch(e) {
-    SITES.forEach((s, i) => {
-      allSiteResults[i] = { name: s.name, addr: s.addr, url: s.url, tanks: [], error: "Proxy unreachable: " + e.message };
-      const card = document.getElementById("card-" + i);
-      if (card) card.innerHTML = buildCardHTML(allSiteResults[i]);
-    });
-    btn.disabled = false;
-    btn.textContent = "\u27f3 Refresh";
+    grid.innerHTML = "<div style='padding:30px;color:#ef9a9a;text-align:center'>&#9888; Unable to reach proxy: " + e.message + "</div>";
+    btn.disabled = false; btn.textContent = "\u27f3 Refresh";
     startAutoRefresh();
-    updateSummary();
     return;
   }
 
   proxyResults.forEach((proxyResult, i) => {
-    const result = { name: proxyResult.name, addr: proxyResult.addr, url: proxyResult.url, tanks: [], error: proxyResult.error || null };
+    const siteName = proxyResult.name;
+    const result   = { name: siteName, addr: proxyResult.addr, tanks: [], error: proxyResult.error || null };
 
     if (!proxyResult.error && proxyResult.cgiData && proxyResult.cgiData.tankData) {
       const fuelMap  = proxyResult.invHtml ? parseFuelTypes(proxyResult.invHtml) : {};
@@ -520,7 +454,7 @@ async function fetchAll() {
       proxyResult.cgiData.tankData.forEach(t => {
         const cap      = t.capacity || 1;
         const gross    = t.grossVolume || 0;
-        const override = getTankOverride(proxyResult.url, t.tankNum);
+        const override = getTankOverride(siteName, t.tankNum);
         const cap2     = (override && override.capacityCap) ? override.capacityCap : cap;
         const pctCapped = Math.min(Math.round((gross / cap2) * 1000) / 10, 100);
         const ullageCapped = Math.max(0, Math.round(cap2 * 0.9 - gross));
@@ -533,7 +467,7 @@ async function fetchAll() {
           ullage:      (override && override.capacityCap) ? ullageCapped : Math.round(t.adjustedUllage || 0),
           fuelColor:   t.fuelColor || barColor(pctCapped),
           grossHeight: t.grossHeight != null ? t.grossHeight.toFixed(2) : null,
-          probeLength: getProbeLength(proxyResult.url, t.tankNum),
+          probeLength: getProbeLength(siteName, t.tankNum),
           override:    override,
           volUnits:    volUnits,
         });
@@ -547,22 +481,15 @@ async function fetchAll() {
       });
     }
 
-    allSiteResults[i] = result;
-    const card = document.getElementById("card-" + i);
-    if (card) card.innerHTML = buildCardHTML(result);
+    allSiteResults.push(result);
+    const card = document.createElement("div");
+    card.className = "site-card";
+    card.id = "card-" + i;
+    card.innerHTML = buildCardHTML(result);
+    grid.appendChild(card);
   });
 
-  updateSummary();
-
-  const now = new Date();
-  document.getElementById("ts").textContent =
-    now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
-  btn.disabled = false;
-  btn.textContent = "\u27f3 Refresh";
-  startAutoRefresh();
-}
-
-function updateSummary() {
+  // Summary
   let online = 0, tanks = 0, lowFuel = 0, totalVol = 0;
   allSiteResults.forEach(result => {
     if (!result || result.error) return;
@@ -576,15 +503,21 @@ function updateSummary() {
     });
   });
   document.getElementById("s-online").textContent    = online || "\u2014";
-  document.getElementById("s-online").style.color    = (online > 0 && online < SITES.length) ? "#f44336" : "#fff";
-  document.getElementById("s-tanks").textContent     = tanks || "\u2014";
+  document.getElementById("s-online").style.color    = (online > 0 && online < 7) ? "#f44336" : "#fff";
+  document.getElementById("s-tanks").textContent     = tanks  || "\u2014";
   document.getElementById("s-low").textContent       = lowFuel;
   document.getElementById("s-low").style.color       = lowFuel > 0 ? "#ff9800" : "#fff";
   document.getElementById("s-total-vol").textContent = totalVol > 0 ? totalVol.toLocaleString() : "\u2014";
+
+  const now = new Date();
+  document.getElementById("ts").textContent =
+    now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
+  btn.disabled = false;
+  btn.textContent = "\u27f3 Refresh";
+  startAutoRefresh();
 }
 
 document.getElementById("refresh-btn").addEventListener("click", fetchAll);
-
 fetchAll();
 </script>
 </body>

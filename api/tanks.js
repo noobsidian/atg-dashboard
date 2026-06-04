@@ -11,7 +11,7 @@ const SITES = [
   { name: "Neuse River NRRF RW",           addr: "8500 Battle Bridge Rd",   url: "http://63.46.75.227:10001" },
 ];
 
-const TIMEOUT_MS = 28000; // increased from 20s
+const TIMEOUT_MS = 28000;
 
 function fetchUrl(url, timeoutMs) {
   const t = timeoutMs || TIMEOUT_MS;
@@ -30,7 +30,6 @@ function fetchUrl(url, timeoutMs) {
 async function fetchSite(site) {
   const result = { name: site.name, addr: site.addr, url: site.url, tanks: [], alarms: [], error: null, cgiData: null, invHtml: null };
   try {
-    // Fetch CGI and inventory in parallel — alarms separately with shorter timeout
     const [cgiRaw, invHtml] = await Promise.all([
       fetchUrl(site.url + '/cgi-bin/getTankData.cgi?dataset=dynData'),
       fetchUrl(site.url + '/php/Inventory.php'),
@@ -40,12 +39,11 @@ async function fetchSite(site) {
     result.invHtml = invHtml;
     if (!result.cgiData || !result.cgiData.tankData) throw new Error('No tank data');
 
-    // Fetch alarms separately — don't let a slow alarm response fail the whole site
     try {
       const alarmRaw = await fetchUrl(site.url + '/php/getAlarms.php?current=1', 10000);
       result.alarms = JSON.parse(alarmRaw);
     } catch(e) {
-      result.alarms = []; // alarms unavailable — tank data still shows
+      result.alarms = [];
     }
 
   } catch(e) {
@@ -62,5 +60,20 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   const results = await Promise.all(SITES.map(fetchSite));
+
+  // Vendor mode — strip all internal infrastructure details from the response
+  if (req.query && req.query.vendor === '1') {
+    const scrubbed = results.map(r => ({
+      name:    r.name,
+      addr:    r.addr,
+      // url intentionally omitted
+      error:   r.error,
+      alarms:  [], // no alarm details exposed to vendor
+      invHtml: r.invHtml, // still needed for fuel type parsing client-side
+      cgiData: r.cgiData,
+    }));
+    return res.status(200).json(scrubbed);
+  }
+
   res.status(200).json(results);
 };
