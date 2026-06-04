@@ -710,6 +710,7 @@ body.light .copy-btn-contract:hover { background: #e0f7fa !important; }
 .water-warn-high { color: #f44336 !important; animation: pulse 1.5s infinite; }
 body.light .water-warn { color: #0a5a9c; }
 body.light .water-warn-high { color: #c0392b !important; }
+.water-row { margin-top: 2px; padding-left: 2px; }
 </style>
 </head>
 <body>
@@ -1530,7 +1531,8 @@ function buildTankRow(t) {
           return "<div class='bar-wrap bar-wrap-capped' style='overflow:visible;position:relative'>"            + "<div class='bar-fill' style='width:" + fillPct.toFixed(2) + "%;background:" + col + ";position:absolute;top:0;bottom:0;left:0'></div>"            + (overPct > 0 ? "<div style='position:absolute;top:0;bottom:0;left:" + capPct.toFixed(2) + "%;width:" + overPct.toFixed(2) + "%;background:#f44336;z-index:2'></div>" : "")            + "<div class='bar-cap-zone' style='left:" + capPct.toFixed(2) + "%;width:" + (100 - capPct).toFixed(2) + "%'></div>"            + "<div class='bar-cap-line' style='left:" + capPct.toFixed(2) + "%'></div>"            + "</div>";
         })()
       : "<div class='bar-wrap'><div class='bar-fill' style='width:" + pctSafe + "%;background:" + col + "'></div></div>")
-    +   "<div class='t-ullage'><span class='t-ullage-label'>Ullage</span><span class='t-ullage-val'>" + t.ullage.toLocaleString() + " G</span>" + tempStr + inchesStr(t) + (t.waterHeight && t.waterHeight >= 0.5 ? "<span class='water-warn" + (t.waterHeight >= 1.0 ? " water-warn-high" : "") + "' title='Water: " + t.waterHeight.toFixed(2) + "\"'> &#128167; " + t.waterHeight.toFixed(2) + "\"</span>" : "") + "</div>"
+    +   "<div class='t-ullage'><span class='t-ullage-label'>Ullage</span><span class='t-ullage-val'>" + t.ullage.toLocaleString() + " G</span>" + tempStr + inchesStr(t) + "</div>"
+    +   (t.waterHeight && t.waterHeight >= 0.5 ? "<div class='water-row'><span class='water-warn" + (t.waterHeight >= 1.0 ? " water-warn-high" : "") + "'> &#128167; Water: " + t.waterHeight.toFixed(2) + "\"" + (t.waterVolume ? "  (" + t.waterVolume + " G)" : "") + "</span></div>" : "")
     + "</div>"
     + "<div class='t-right'>"
     +   "<div class='t-vol'>" + t.vol.toLocaleString() + " G</div>"
