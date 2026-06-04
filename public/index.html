@@ -839,17 +839,22 @@ body.light .water-warn-high { color: #c0392b !important; }
 
 <script>
 
+// ── Auth token — read from URL, passed to proxy on every request ───────────
+// Share the dashboard as: https://atg-dashboard.vercel.app/?token=YOUR_TOKEN
+// Set DASHBOARD_TOKEN in Vercel environment variables to enable enforcement.
+const DASH_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+
 // ── Render proxy fetch ─────────────────────────────────────────────────────
-// IMPORTANT: Update PROXY_URL after deploying to Render
-const PROXY_URL = "https://atg-dashboard.vercel.app/api/tanks"; // UPDATE after deploying to Vercel
+const PROXY_URL = "/api/tanks";
 
 async function fetchAllFromProxy() {
+  const url  = PROXY_URL + (DASH_TOKEN ? '?token=' + encodeURIComponent(DASH_TOKEN) : '');
   const ctrl = new AbortController();
   const tid  = setTimeout(() => ctrl.abort(), 25000);
   try {
-    const resp = await fetch(PROXY_URL, { cache: "no-store", signal: ctrl.signal });
+    const resp = await fetch(url, { cache: "no-store", signal: ctrl.signal });
     clearTimeout(tid);
-    if (!resp.ok) throw new Error("Proxy error " + resp.status);
+    if (!resp.ok) throw new Error(resp.status === 401 ? "Invalid or missing token \u2014 check your URL" : "Proxy error " + resp.status);
     return await resp.json();
   } catch(e) {
     clearTimeout(tid);
