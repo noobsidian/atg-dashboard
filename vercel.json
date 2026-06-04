@@ -3,11 +3,13 @@
   "builds": [
     { "src": "api/tanks.js", "use": "@vercel/node" },
     { "src": "api/flags.js", "use": "@vercel/node" },
-    { "src": "public/index.html", "use": "@vercel/static" }
+    { "src": "public/index.html", "use": "@vercel/static" },
+    { "src": "public/vendor.html", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/tanks", "dest": "/api/tanks.js" },
     { "src": "/api/flags", "dest": "/api/flags.js" },
+    { "src": "/vendor", "dest": "/public/vendor.html" },
     { "src": "/(.*)", "dest": "/public/index.html" }
   ]
 }
