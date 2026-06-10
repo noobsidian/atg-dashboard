@@ -1,5 +1,5 @@
 const https = require('https');
-const http = require('http');
+const http  = require('http');
 
 const SITES = [
   { name: "Central Operations FMO",        addr: "2540 Westinghouse Blvd", url: "http://63.46.75.214:10001" },
@@ -11,7 +11,7 @@ const SITES = [
   { name: "Neuse River NRRF RW",           addr: "8500 Battle Bridge Rd",   url: "http://63.46.75.227:10001" },
 ];
 
-const TIMEOUT_MS = 28000; // increased from 20s
+const TIMEOUT_MS = 28000;
 
 function fetchUrl(url, timeoutMs) {
   const t = timeoutMs || TIMEOUT_MS;
@@ -30,40 +30,33 @@ function fetchUrl(url, timeoutMs) {
 async function fetchSite(site) {
   const result = { name: site.name, addr: site.addr, url: site.url, tanks: [], alarms: [], error: null, cgiData: null, invHtml: null };
   try {
-    // Fetch CGI and inventory in parallel — alarms separately with shorter timeout
     const [cgiRaw, invHtml] = await Promise.all([
       fetchUrl(site.url + '/cgi-bin/getTankData.cgi?dataset=dynData'),
       fetchUrl(site.url + '/php/Inventory.php'),
     ]);
-
     try { result.cgiData = JSON.parse(cgiRaw); } catch(e) { throw new Error('Invalid JSON from CGI'); }
     result.invHtml = invHtml;
     if (!result.cgiData || !result.cgiData.tankData) throw new Error('No tank data');
-
-    // Fetch alarms separately — don't let a slow alarm response fail the whole site
     try {
       const alarmRaw = await fetchUrl(site.url + '/php/getAlarms.php?current=1', 10000);
       result.alarms = JSON.parse(alarmRaw);
-    } catch(e) {
-      result.alarms = []; // alarms unavailable — tank data still shows
-    }
-
-  } catch(e) {
-    result.error = e.message;
-  }
+    } catch(e) { result.alarms = []; }
+  } catch(e) { result.error = e.message; }
   return result;
+}
+
+function scrubForVendor(r) {
+  return { name: r.name, addr: r.addr, error: r.error, alarms: [], invHtml: r.invHtml, cgiData: r.cgiData };
 }
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Cache-Control', 'no-store');
-
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   const isVendor = req.query && req.query.vendor === '1';
 
-  // Token check — required for the internal dashboard, skipped for vendor view
   if (!isVendor) {
     const expectedToken = process.env.DASHBOARD_TOKEN;
     const providedToken = req.query && req.query.token;
@@ -72,21 +65,17 @@ module.exports = async (req, res) => {
     }
   }
 
-  const results = await Promise.all(SITES.map(fetchSite));
-
-  // Vendor mode — strip all internal infrastructure details from the response
-  if (isVendor) {
-    const scrubbed = results.map(r => ({
-      name:    r.name,
-      addr:    r.addr,
-      // url intentionally omitted
-      error:   r.error,
-      alarms:  [],
-      invHtml: r.invHtml,
-      cgiData: r.cgiData,
-    }));
-    return res.status(200).json(scrubbed);
+  // ?site=N — fetch single site for progressive loading
+  const siteParam = req.query && req.query.site;
+  if (siteParam !== undefined) {
+    const idx = parseInt(siteParam, 10);
+    if (isNaN(idx) || idx < 0 || idx >= SITES.length) return res.status(400).json({ error: 'Invalid site index' });
+    const result = await fetchSite(SITES[idx]);
+    return res.status(200).json(isVendor ? scrubForVendor(result) : result);
   }
 
+  // Fetch all (legacy fallback)
+  const results = await Promise.all(SITES.map(fetchSite));
+  if (isVendor) return res.status(200).json(results.map(scrubForVendor));
   res.status(200).json(results);
 };

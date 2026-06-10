@@ -30,11 +30,16 @@ async function writeGist(record) {
   const resp = await fetch(GIST_URL, {
     method: 'PATCH',
     headers: { ...getHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      files: { [GIST_FILE]: { content: JSON.stringify(record) } }
-    }),
+    body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(record) } } }),
   });
   if (!resp.ok) throw new Error('Gist write failed: ' + resp.status);
+}
+
+// Normalise to { orders: [...] } — handles legacy { flagDate, gallons } format
+function normalise(entry) {
+  if (!entry) return { orders: [] };
+  if (Array.isArray(entry.orders)) return entry;
+  return { orders: [{ flagDate: entry.flagDate, orderedBy: entry.orderedBy || 'User', gallons: entry.gallons || null }] };
 }
 
 module.exports = async function handler(req, res) {
@@ -59,18 +64,31 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const body   = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const record = await readGist();
-      record.flags        = record.flags || {};
-      record.flags[key]   = { flagDate: body.flagDate, orderedBy: body.orderedBy || 'User' };
+      const body     = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const record   = await readGist();
+      record.flags   = record.flags || {};
+      const existing = normalise(record.flags[key]);
+      const newOrder = { flagDate: body.flagDate, orderedBy: body.orderedBy || 'User', gallons: body.gallons || null };
+      if (existing.orders.length >= 2) {
+        existing.orders[existing.orders.length - 1] = newOrder;
+      } else {
+        existing.orders.push(newOrder);
+      }
+      record.flags[key] = existing;
       await writeGist(record);
       return res.status(200).json({ ok: true });
     }
 
     if (req.method === 'DELETE') {
-      const record = await readGist();
-      record.flags = record.flags || {};
-      delete record.flags[key];
+      const record   = await readGist();
+      record.flags   = record.flags || {};
+      const existing = normalise(record.flags[key]);
+      existing.orders.shift(); // FIFO — remove oldest
+      if (existing.orders.length === 0) {
+        delete record.flags[key];
+      } else {
+        record.flags[key] = existing;
+      }
       await writeGist(record);
       return res.status(200).json({ ok: true });
     }
