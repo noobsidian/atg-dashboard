@@ -842,6 +842,24 @@ const DASH_TOKEN = new URLSearchParams(window.location.search).get('token') || '
 const PROXY_URL = "/api/tanks";
 
 
+// ── Per-site progressive loading ──────────────────────────────────────────
+const PROXY_BASE = "/api/tanks";
+
+async function fetchSiteFromProxy(siteIdx) {
+  const params = '?site=' + siteIdx + (DASH_TOKEN ? '&token=' + encodeURIComponent(DASH_TOKEN) : '');
+  const ctrl   = new AbortController();
+  const tid    = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const resp = await fetch(PROXY_BASE + params, { cache: "no-store", signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!resp.ok) throw new Error(resp.status === 401 ? "Invalid or missing token \u2014 check your URL" : "Proxy error " + resp.status);
+    return await resp.json();
+  } catch(e) {
+    clearTimeout(tid);
+    throw e;
+  }
+}
+
 // Parse alarms already in JSON format from proxy
 function parseProxyAlarms(data) {
   if (!Array.isArray(data)) return [];
