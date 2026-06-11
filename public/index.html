@@ -2509,10 +2509,12 @@ document.getElementById("gallons-input").addEventListener("keydown", function(e)
 // ── Shift tooltip ──────────────────────────────────────────────────────────
 const shiftCache = {}, SHIFT_TTL = 5 * 60 * 1000;
 const DAY_ORDER  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const ttEl       = document.getElementById("tank-tooltip");
 let _ttTarget = null, _ttTimer = null;
 
+function getTtEl() { return document.getElementById("tank-tooltip"); }
+
 function positionTooltip(e) {
+  const ttEl = getTtEl();
   if (!ttEl || ttEl.style.display === "none") return;
   const m = 12, w = ttEl.offsetWidth, h = ttEl.offsetHeight;
   let x = e.clientX + m, y = e.clientY - h / 2;
@@ -2558,6 +2560,8 @@ document.addEventListener("mouseover", function(e) {
   const tankId   = row.dataset.tankId;
   const delivTxt = row.dataset.deliveryText || "";
   if (siteIdx === "" || siteIdx === undefined || !tankId) return;
+  const ttEl = getTtEl();
+  if (!ttEl) return;
   _ttTarget = row;
   ttEl.innerHTML = buildTooltipHTML(delivTxt, "loading");
   ttEl.style.display = "block";
@@ -2565,17 +2569,23 @@ document.addEventListener("mouseover", function(e) {
   clearTimeout(_ttTimer);
   _ttTimer = setTimeout(() => {
     fetchShiftData(siteIdx, tankId)
-      .then(data => { if (_ttTarget === row) { ttEl.innerHTML = buildTooltipHTML(delivTxt, data); positionTooltip(e); }})
-      .catch(() => { if (_ttTarget === row) ttEl.innerHTML = buildTooltipHTML(delivTxt, null); });
+      .then(data => { if (_ttTarget === row) { const tt = getTtEl(); if (tt) { tt.innerHTML = buildTooltipHTML(delivTxt, data); positionTooltip(e); }}})
+      .catch(() => { if (_ttTarget === row) { const tt = getTtEl(); if (tt) tt.innerHTML = buildTooltipHTML(delivTxt, null); }});
   }, 150);
 });
 
-document.addEventListener("mousemove", function(e) { if (ttEl.style.display !== "none") positionTooltip(e); });
+document.addEventListener("mousemove", function(e) {
+  const ttEl = getTtEl();
+  if (ttEl && ttEl.style.display !== "none") positionTooltip(e);
+});
+
 document.addEventListener("mouseout", function(e) {
   const row = e.target.closest(".tank-row[data-tank-id]");
   if (!row) return;
   if (e.relatedTarget && row.contains(e.relatedTarget)) return;
-  _ttTarget = null; clearTimeout(_ttTimer); ttEl.style.display = "none";
+  const ttEl = getTtEl();
+  _ttTarget = null; clearTimeout(_ttTimer);
+  if (ttEl) ttEl.style.display = "none";
 });
 </script>
 </body>
