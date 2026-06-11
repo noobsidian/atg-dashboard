@@ -1459,8 +1459,54 @@ function confirmGallonsModal() {
   });
 }
 
+async function clearAllOrderFlags(siteUrl, tankId) {
+  const key = flagCacheKey(siteUrl, tankId);
+  delete flagCache[key];
+  // Two DELETEs to clear both orders server-side (FIFO on each call)
+  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
+  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
+}
+
+// ── Long-press to clear all orders ────────────────────────────────────────
+const LONG_PRESS_MS = 600;
+let _lpTimer = null, _lpBtn = null, _lpFired = false;
+
+document.addEventListener("mousedown", function(e) {
+  const btn = e.target.closest(".order-flag-btn");
+  if (!btn || !btn.classList.contains("order-flag-active")) return;
+  _lpBtn   = btn;
+  _lpFired = false;
+  btn.style.transition = "background " + LONG_PRESS_MS + "ms";
+  btn.style.background = "rgba(244,67,54,0.3)";
+  _lpTimer = setTimeout(() => {
+    _lpFired = true;
+    const siteUrl = decodeURIComponent(btn.dataset.site || "");
+    const tankId  = btn.dataset.tank;
+    btn.style.background = "";
+    btn.style.transition = "";
+    clearAllOrderFlags(siteUrl, tankId).then(() => {
+      allSiteResults.forEach((result, i) => {
+        if (!result || result.url !== siteUrl) return;
+        const card = document.getElementById("card-" + i);
+        if (card) card.innerHTML = buildCardHTML(result);
+      });
+    });
+  }, LONG_PRESS_MS);
+});
+
+document.addEventListener("mouseup", function(e) {
+  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
+});
+
+document.addEventListener("mouseleave", function(e) {
+  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
+}, true);
+
 // Toggle flag on click
 document.addEventListener("click", function(e) {
+  if (_lpFired) { _lpFired = false; return; } // long-press already handled
   const btn = e.target.closest(".order-flag-btn");
   if (!btn) return;
   const siteUrl = decodeURIComponent(btn.dataset.site || "");
@@ -1529,7 +1575,7 @@ function buildTankRow(t) {
   const galLabel = galStrs.join(" / ");
   const titleParts = orders.map((o, idx) => "Order " + (idx+1) + ": " + o.flagDate + (o.gallons ? " (" + o.gallons.toLocaleString() + " G)" : ""));
   const flagTitle  = hasOrder
-    ? titleParts.join(" | ") + (orders.length < 2 ? " \u2014 click to add 2nd order" : " \u2014 click to clear oldest")
+    ? titleParts.join(" | ") + (orders.length < 2 ? " \u2014 click to add 2nd order" : " \u2014 click to clear oldest | hold to clear all")
     : "Mark as ordered";
   const flagClass   = "order-flag-btn" + (hasOrder ? " order-flag-active" : "");
   const flagLabel   = encodeURIComponent(t.fuelType + " \u00b7 Tank " + t.id);
