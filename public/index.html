@@ -1162,7 +1162,10 @@ async function fetchSite(site) {
         deliveryHistory: deliveryMap[t.tankNum] || [],
         waterHeight:     t.waterHeight != null ? t.waterHeight : null,
         waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
+        capacity:        cap,
+        _siteUrl:        site.url,
         _siteIdx:        SITES.findIndex(s => s.url === site.url),
+      });
     });
     result.tanks.sort((a, b) => {
       const aLast = a.override && a.override.sortLast ? 1 : 0;
