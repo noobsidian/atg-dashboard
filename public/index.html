@@ -367,8 +367,8 @@ body.light .cap-tag { background: #e8f4ff; color: #0a5a9c; border-color: #b0c8e0
   border: 1px solid #324a5f; border-radius: 8px;
   padding: 10px 14px; font-size: 11px; line-height: 1.7;
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  pointer-events: none; min-width: 230px; max-width: 300px;
-  display: none; white-space: nowrap;
+  pointer-events: none; min-width: 260px; max-width: 380px;
+  display: none; white-space: normal; word-break: break-word;
 }
 body.light #tank-tooltip { background: #fff; color: #1a1a2e; border-color: #b0c8e0; }
 .tt-section-hdr {
@@ -929,7 +929,7 @@ function getTankOverride(siteUrl, tankId) {
 }
 
 const URGENT_KEYWORDS  = ["delivery needed", "delivery need"];
-const NOTABLE_KEYWORDS = ["water alarm", "overfill", "high product"];
+const NOTABLE_KEYWORDS = ["water alarm", "high water", "overfill", "high product"];
 
 // Normalize product names for consistent display
 const PRODUCT_NAME_MAP = {
@@ -1159,6 +1159,8 @@ async function fetchSite(site) {
         deliveryHistory: deliveryMap[t.tankNum] || [],
         waterHeight:     t.waterHeight != null ? t.waterHeight : null,
         waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
+        _siteUrl:        site.url,
+        _siteIdx:        SITES.findIndex(s => s.url === site.url),
       });
     });
     result.tanks.sort((a, b) => {
@@ -1581,7 +1583,7 @@ function buildTankRow(t) {
   const flagLabel   = encodeURIComponent(t.fuelType + " \u00b7 Tank " + t.id);
   const flagContent = hasOrder ? ("&#128666;" + (galLabel ? " " + galLabel : "")) : "&#128666;";
   const flagBtn     = "<button class='" + flagClass + "' data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' data-label='" + flagLabel + "' data-ullage='" + (t.ullage || 0) + "' title='" + flagTitle.replace(/'/g, "") + "'>" + flagContent + "</button>";
-  const delivText   = buildDeliveryText(t).replace(/'/g, "&#39;");
+  const delivText   = buildDeliveryText(t).replace(/'/g, "&#39;").replace(/\n/g, "&#10;");
   return "<div class='tank-row " + rc + "' data-site-idx='" + (t._siteIdx !== undefined ? t._siteIdx : '') + "' data-tank-id='" + t.id + "' data-delivery-text='" + delivText + "'>"
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
@@ -1780,6 +1782,7 @@ async function fetchAll() {
           waterHeight:     t.waterHeight != null ? t.waterHeight : null,
           waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
           _siteUrl:    proxyResult.url,
+          _siteIdx:    i,
         });
       });
 
@@ -2539,7 +2542,7 @@ function positionTooltip(e) {
 }
 
 function buildTooltipHTML(delivText, shiftData) {
-  let html = delivText ? delivText.replace(/\n/g, "<br>") : "";
+  let html = delivText ? delivText.replace(/&#10;/g, "<br>").replace(/&#39;/g, "'") : "";
   if (shiftData === "loading") {
     html += (html ? "<br><br>" : "") + '<span class="tt-loading">Loading shift data\u2026</span>';
   } else if (shiftData && typeof shiftData === "object") {
@@ -2549,7 +2552,7 @@ function buildTooltipHTML(delivText, shiftData) {
       const note = d.periods < 3 ? " <span style='color:#7a9bbf;font-size:9px'>(" + d.periods + "wk)</span>" : "";
       return "<div class='tt-day-row'><span class='tt-day'>" + day + "</span><span class='tt-gal'>" + d.avg.toLocaleString() + " G" + note + "</span></div>";
     }).filter(Boolean);
-    if (rows.length > 0) html += (html ? "<br>" : "") + "<div class='tt-section-hdr'>Avg Daily (3-wk)</div>" + rows.join("");
+    if (rows.length > 0) html += (html ? "<hr style='border:none;border-top:1px solid #253a4f;margin:6px 0'>" : "") + "<div class='tt-section-hdr'>Avg Daily (3-wk)</div>" + rows.join("");
   }
   return html;
 }
@@ -2567,40 +2570,52 @@ async function fetchShiftData(siteIdx, tankId) {
   return json.data;
 }
 
-// Single mouseover handler — show on tank rows, hide when leaving them
-document.addEventListener("mouseover", function(e) {
+// Tooltip — use mousemove for position, hide when leaving the row entirely
+let _hideTimer = null;
+
+document.addEventListener("mousemove", function(e) {
   const row = e.target.closest(".tank-row[data-tank-id]");
+  const ttEl = getTtEl();
+  if (!ttEl) return;
+
   if (!row || row.classList.contains("waste-oil-row")) {
-    const ttEl = getTtEl();
-    if (ttEl && ttEl.style.display !== "none") {
-      ttEl.style.display = "none";
-      _ttTarget = null;
-      clearTimeout(_ttTimer);
+    // Not over a tank row — hide after tiny delay (avoids flicker between children)
+    if (!_hideTimer) {
+      _hideTimer = setTimeout(() => {
+        _hideTimer = null;
+        const tt = getTtEl();
+        if (tt) tt.style.display = "none";
+        _ttTarget = null;
+        clearTimeout(_ttTimer);
+      }, 80);
     }
     return;
   }
+
+  // Cancel any pending hide
+  if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+
+  // Position tooltip while over a row
+  if (ttEl.style.display !== "none") positionTooltip(e);
+
+  // New row — trigger fetch
   if (_ttTarget === row) return;
   const siteIdx  = row.dataset.siteIdx;
   const tankId   = row.dataset.tankId;
   const delivTxt = row.dataset.deliveryText || "";
-  if (siteIdx === "" || siteIdx === undefined || !tankId) return;
-  const ttEl = getTtEl();
-  if (!ttEl) return;
+  if (siteIdx === undefined || siteIdx === null || siteIdx === "" || !tankId) return;
+
   _ttTarget = row;
+  clearTimeout(_ttTimer);
   ttEl.innerHTML = buildTooltipHTML(delivTxt, "loading");
   ttEl.style.display = "block";
   positionTooltip(e);
-  clearTimeout(_ttTimer);
+
   _ttTimer = setTimeout(() => {
     fetchShiftData(siteIdx, tankId)
       .then(data => { if (_ttTarget === row) { const tt = getTtEl(); if (tt) { tt.innerHTML = buildTooltipHTML(delivTxt, data); positionTooltip(e); }}})
-      .catch(() => { if (_ttTarget === row) { const tt = getTtEl(); if (tt) tt.innerHTML = buildTooltipHTML(delivTxt, null); }});
-  }, 150);
-});
-
-document.addEventListener("mousemove", function(e) {
-  const ttEl = getTtEl();
-  if (ttEl && ttEl.style.display !== "none") positionTooltip(e);
+      .catch(()  => { if (_ttTarget === row) { const tt = getTtEl(); if (tt)   tt.innerHTML = buildTooltipHTML(delivTxt, null); }});
+  }, 200);
 });
 </script>
 </body>
