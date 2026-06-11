@@ -841,21 +841,6 @@ const DASH_TOKEN = new URLSearchParams(window.location.search).get('token') || '
 // ── Render proxy fetch ─────────────────────────────────────────────────────
 const PROXY_URL = "/api/tanks";
 
-async function fetchAllFromProxy() {
-  const url  = PROXY_URL + (DASH_TOKEN ? '?token=' + encodeURIComponent(DASH_TOKEN) : '');
-  const ctrl = new AbortController();
-  const tid  = setTimeout(() => ctrl.abort(), 25000);
-  try {
-    const resp = await fetch(url, { cache: "no-store", signal: ctrl.signal });
-    clearTimeout(tid);
-    if (!resp.ok) throw new Error(resp.status === 401 ? "Invalid or missing token \u2014 check your URL" : "Proxy error " + resp.status);
-    return await resp.json();
-  } catch(e) {
-    clearTimeout(tid);
-    throw e;
-  }
-}
-
 
 // Parse alarms already in JSON format from proxy
 function parseProxyAlarms(data) {
@@ -1721,164 +1706,101 @@ function applyRefreshRate() {
 
 // ── Main fetch ─────────────────────────────────────────────────────────────
 
+function processSiteResult(proxyResult, i) {
+  const result = { name: proxyResult.name, addr: proxyResult.addr, url: proxyResult.url, tanks: [], alarms: [], error: proxyResult.error || null };
+  if (!proxyResult.error && proxyResult.cgiData && proxyResult.cgiData.tankData) {
+    const fuelMap     = proxyResult.invHtml ? parseFuelTypes(proxyResult.invHtml) : {};
+    const deliveryMap = proxyResult.invHtml ? parseDeliveryData(proxyResult.invHtml) : {};
+    result.alarms     = Array.isArray(proxyResult.alarms) ? parseProxyAlarms(proxyResult.alarms) : [];
+    const volUnits    = proxyResult.cgiData.volUnitsStr || "G";
+    proxyResult.cgiData.tankData.forEach(t => {
+      const cap = t.capacity || 1, gross = t.grossVolume || 0;
+      const override = getTankOverride(proxyResult.url, t.tankNum);
+      const cap2 = (override && override.capacityCap) ? override.capacityCap : cap;
+      const pctCapped = Math.min(Math.round((gross / cap2) * 1000) / 10, 100);
+      const ullageCapped = Math.max(0, Math.round(cap2 * 0.9 - gross));
+      result.tanks.push({
+        id: t.tankNum, fuelType: normalizeFuelType(fuelMap[t.tankNum] || t.fuelType || "Tank " + t.tankNum),
+        vol: Math.round(t.productVolume || gross), pct: pctCapped,
+        ullage: (override && override.capacityCap) ? ullageCapped : Math.round(t.adjustedUllage || 0),
+        temp: t.averageTemp != null ? t.averageTemp.toFixed(1) : null,
+        fuelColor: t.fuelColor || barColor(pctCapped), status: t.statusIndStr || "Normal",
+        severity: t.statusIndSeverity || "Normal", volUnits, override,
+        grossHeight: t.grossHeight != null ? t.grossHeight.toFixed(2) : null,
+        probeLength: getProbeLength(proxyResult.url, t.tankNum),
+        capacityCap: (override && override.capacityCap) ? override.capacityCap : null,
+        capacity: cap,
+        lastDelivery: (deliveryMap[t.tankNum] && deliveryMap[t.tankNum].length > 0) ? deliveryMap[t.tankNum][0] : null,
+        deliveryHistory: deliveryMap[t.tankNum] || [],
+        waterHeight: t.waterHeight != null ? t.waterHeight : null,
+        waterVolume: t.waterVolume != null ? Math.round(t.waterVolume) : null,
+        _siteUrl: proxyResult.url, _siteIdx: i,
+      });
+    });
+    result.tanks.sort((a, b) => {
+      const aL = a.override && a.override.sortLast ? 1 : 0, bL = b.override && b.override.sortLast ? 1 : 0;
+      return aL !== bL ? aL - bL : a.id - b.id;
+    });
+    proxyResult.cgiData.tankData.forEach(t => {
+      if (!t.statusCondsList || !Array.isArray(t.statusCondsList)) return;
+      const override = getTankOverride(proxyResult.url, t.tankNum);
+      if (override && override.isWasteOil) return;
+      const tankObj = result.tanks.find(rt => rt.id === t.tankNum);
+      if (!tankObj) return;
+      t.statusCondsList.forEach(cond => {
+        const desc = cond.statusIndStr || "", sev = (cond.statusIndSeverity || "Normal").toLowerCase();
+        if (sev === "normal" || desc.toLowerCase() === "normal") return;
+        const already = result.alarms.some(a => String(a.tankNum) === String(t.tankNum) && a.description.toLowerCase() === desc.toLowerCase());
+        if (already) return;
+        result.alarms.push({ logNum: String(t.tankNum), tankNum: String(t.tankNum), label: tankObj.fuelType, tankLabel: tankObj.fuelType, description: desc, category: "Tank", severity: sev === "warning" ? "warning" : "alarm", timeActive: "" });
+      });
+    });
+  }
+  return result;
+}
+
+function updateSummaryBar() {
+  let online = 0, tanks = 0, alarms = 0, low = 0, vol = 0;
+  allSiteResults.forEach(r => {
+    if (!r || r.error) return; online++;
+    r.tanks.forEach(t => { tanks++; if (!t.override || !t.override.isWasteOil) { vol += t.vol; if (t.pct < 25) low++; } });
+    alarms += (r.alarms || []).length;
+    alarms += r.tanks.filter(t => t.override && t.override.isWasteOil && t.pct >= t.override.highAlertPct).length;
+  });
+  document.getElementById("s-online").textContent = online || "\u2014";
+  document.getElementById("s-online").style.color = (online > 0 && online < SITES.length) ? "#f44336" : "#fff";
+  document.getElementById("s-tanks").textContent  = tanks  || "\u2014";
+  document.getElementById("s-alarms").textContent = alarms;
+  document.getElementById("s-alarms").style.color = alarms > 0 ? "#f44336" : "#fff";
+  document.getElementById("s-low").textContent    = low;
+  document.getElementById("s-low").style.color    = low > 0 ? "#ff9800" : "#fff";
+  document.getElementById("s-total-vol").textContent = vol > 0 ? vol.toLocaleString() : "\u2014";
+}
+
 async function fetchAll() {
-  clearInterval(refreshTimer);
-  clearInterval(countTimer);
+  clearInterval(refreshTimer); clearInterval(countTimer);
   const btn = document.getElementById("refresh-btn");
-  btn.disabled = true;
-  btn.textContent = "Loading\u2026";
-  allSiteResults = new Array(SITES.length);
+  btn.disabled = true; btn.textContent = "Loading\u2026";
+  allSiteResults = new Array(SITES.length).fill(null);
   const grid = document.getElementById("site-grid");
   grid.innerHTML = "";
   SITES.forEach((s, i) => {
     const card = document.createElement("div");
-    card.className = "site-card";
-    card.id = "card-" + i;
-    card.innerHTML = "<div class='site-hdr'>"
-      + "<div><div class='site-name'>" + s.name + "</div><div class='site-addr'>" + s.addr + "</div></div>"
-      + "<span class='badge b-loading pulse'>Loading\u2026</span>"
-      + "</div><div class='placeholder'>Fetching data\u2026</div>";
+    card.className = "site-card"; card.id = "card-" + i;
+    card.innerHTML = "<div class='site-hdr'><div><div class='site-name'>" + s.name + "</div><div class='site-addr'>" + s.addr + "</div></div><span class='badge b-loading pulse'>Loading\u2026</span></div><div class='placeholder'>Fetching data\u2026</div>";
     grid.appendChild(card);
   });
-  let online = 0, tanks = 0, alarmCount = 0, lowFuel = 0, totalVol = 0;
-
-  // Flags loaded on init and after toggle — not on every refresh
-
-  let proxyResults;
-  try {
-    proxyResults = await fetchAllFromProxy();
-  } catch(e) {
-    // Mark all sites as errored
-    SITES.forEach((s, i) => {
-      allSiteResults[i] = { name: s.name, addr: s.addr, url: s.url, tanks: [], alarms: [], error: "Proxy unreachable: " + e.message };
-      const card = document.getElementById("card-" + i);
-      if (card) card.innerHTML = buildCardHTML(allSiteResults[i]);
-    });
-    document.getElementById("s-online").textContent = 0;
-    document.getElementById("s-online").style.color = "#f44336";
-    return;
-  }
-
-  // Process each site result from proxy — parse fuel types and alarms client-side
-  proxyResults.forEach((proxyResult, i) => {
-    let result = { name: proxyResult.name, addr: proxyResult.addr, url: proxyResult.url, tanks: [], alarms: [], error: proxyResult.error || null };
-
-    if (!proxyResult.error && proxyResult.cgiData && proxyResult.cgiData.tankData) {
-      const fuelMap     = proxyResult.invHtml ? parseFuelTypes(proxyResult.invHtml) : {};
-      const deliveryMap = proxyResult.invHtml ? parseDeliveryData(proxyResult.invHtml) : {};
-      result.alarms     = Array.isArray(proxyResult.alarms) ? parseProxyAlarms(proxyResult.alarms) : [];
-      const volUnits    = proxyResult.cgiData.volUnitsStr || "G";
-
-      proxyResult.cgiData.tankData.forEach(t => {
-        const cap      = t.capacity || 1;
-        const gross    = t.grossVolume || 0;
-        const pct      = Math.round((gross / cap) * 1000) / 10;
-        const override = getTankOverride(proxyResult.url, t.tankNum);
-        const cap2     = (override && override.capacityCap) ? override.capacityCap : cap;
-        const pctCapped = Math.min(Math.round((gross / cap2) * 1000) / 10, 100);
-        const ullageCapped = Math.max(0, Math.round(cap2 * 0.9 - gross));
-
-        result.tanks.push({
-          id:          t.tankNum,
-          fuelType:    normalizeFuelType(fuelMap[t.tankNum] || t.fuelType || "Tank " + t.tankNum),
-          vol:         Math.round(t.productVolume || gross),
-          pct:         pctCapped,
-          ullage:      (override && override.capacityCap) ? ullageCapped : Math.round(t.adjustedUllage || 0),
-          temp:        t.averageTemp != null ? t.averageTemp.toFixed(1) : null,
-          fuelColor:   t.fuelColor || barColor(pctCapped),
-          status:      t.statusIndStr || "Normal",
-          severity:    t.statusIndSeverity || "Normal",
-          volUnits:    volUnits,
-          override:    override,
-          grossHeight: t.grossHeight != null ? t.grossHeight.toFixed(2) : null,
-          probeLength: getProbeLength(proxyResult.url, t.tankNum),
-          capacityCap: (override && override.capacityCap) ? override.capacityCap : null,
-          lastDelivery:   (deliveryMap[t.tankNum] && deliveryMap[t.tankNum].length > 0) ? deliveryMap[t.tankNum][0] : null,
-          deliveryHistory: deliveryMap[t.tankNum] || [],
-          waterHeight:     t.waterHeight != null ? t.waterHeight : null,
-          waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
-          _siteUrl:    proxyResult.url,
-        });
-      });
-
-      result.tanks.sort((a, b) => {
-        const aLast = a.override && a.override.sortLast ? 1 : 0;
-        const bLast = b.override && b.override.sortLast ? 1 : 0;
-        if (aLast !== bLast) return aLast - bLast;
-        return a.id - b.id;
-      });
-
-      // Supplement alarms with statusCondsList entries from CGI tank data
-      // This catches alarms like Delivery Needed that appear in tank status
-      // but may not surface through the getAlarms.php endpoint
-      proxyResult.cgiData.tankData.forEach(t => {
-        if (!t.statusCondsList || !Array.isArray(t.statusCondsList)) return;
-        const override = getTankOverride(proxyResult.url, t.tankNum);
-        if (override && override.isWasteOil) return;
-        const tankObj = result.tanks.find(rt => rt.id === t.tankNum);
-        if (!tankObj) return;
-
-        t.statusCondsList.forEach(cond => {
-          const desc = cond.statusIndStr || "";
-          const sev  = (cond.statusIndSeverity || "Normal").toLowerCase();
-          if (sev === "normal" || desc.toLowerCase() === "normal") return;
-
-          // Check if this condition is already in alarms list
-          const already = result.alarms.some(a =>
-            String(a.tankNum) === String(t.tankNum) &&
-            a.description.toLowerCase() === desc.toLowerCase()
-          );
-          if (already) return;
-
-          result.alarms.push({
-            logNum:     String(t.tankNum),
-            tankNum:    String(t.tankNum),
-            label:      tankObj.fuelType,
-            tankLabel:  tankObj.fuelType,
-            description: desc,
-            category:   "Tank",
-            severity:   sev === "warning" ? "warning" : "alarm",
-            timeActive: "",
-          });
-        });
-      });
-    }
-
-    allSiteResults[i] = result;
-    const card = document.getElementById("card-" + i);
-    if (card) card.innerHTML = buildCardHTML(result);
-
-    if (!result.error) {
-      online++;
-      result.tanks.forEach(t => {
-        tanks++;
-        if (!t.override || !t.override.isWasteOil) {
-          totalVol += t.vol;
-          if (t.pct < 25) lowFuel++;
-        }
-      });
-      alarmCount += (result.alarms || []).length;
-      alarmCount += result.tanks.filter(t => t.override && t.override.isWasteOil && t.pct >= t.override.highAlertPct).length;
-    }
-
-    document.getElementById("s-online").textContent  = online;
-    document.getElementById("s-online").style.color  = online < SITES.length ? "#f44336" : "#fff";
-    document.getElementById("s-tanks").textContent   = tanks || "\u2014";
-    document.getElementById("s-alarms").textContent  = alarmCount;
-    document.getElementById("s-alarms").style.color  = alarmCount > 0 ? "#f44336" : "#fff";
-    document.getElementById("s-low").textContent     = lowFuel;
-    document.getElementById("s-low").style.color     = lowFuel > 0 ? "#ff9800" : "#fff";
-    document.getElementById("s-total-vol").textContent = totalVol > 0 ? totalVol.toLocaleString() : "\u2014";
-  });
+  await Promise.allSettled(SITES.map((s, i) =>
+    fetchSiteFromProxy(i)
+      .then(pr => { const r = processSiteResult(pr, i); allSiteResults[i] = r; const c = document.getElementById("card-" + i); if (c) c.innerHTML = buildCardHTML(r); updateSummaryBar(); })
+      .catch(e  => { allSiteResults[i] = { name: s.name, addr: s.addr, url: s.url, tanks: [], alarms: [], error: e.message }; const c = document.getElementById("card-" + i); if (c) c.innerHTML = buildCardHTML(allSiteResults[i]); updateSummaryBar(); })
+  ));
   const now = new Date();
-  document.getElementById("ts").textContent =
-    now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
-  btn.disabled = false;
-  btn.textContent = "\u27f3 Refresh All";
-  buildFilterPills();
-  applyProductFilter();
-  startAutoRefresh();
+  document.getElementById("ts").textContent = now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
+  btn.disabled = false; btn.textContent = "\u27f3 Refresh All";
+  buildFilterPills(); applyProductFilter(); startAutoRefresh();
 }
+
 
 document.getElementById("refresh-btn").addEventListener("click", fetchAll);
 
