@@ -2556,6 +2556,7 @@ async function fetchShiftData(siteIdx, tankId) {
 document.addEventListener("mouseover", function(e) {
   const row = e.target.closest(".tank-row[data-tank-id]");
   if (!row || row.classList.contains("waste-oil-row")) return;
+  if (_ttTarget === row) return; // already showing for this row
   const siteIdx  = row.dataset.siteIdx;
   const tankId   = row.dataset.tankId;
   const delivTxt = row.dataset.deliveryText || "";
@@ -2579,13 +2580,14 @@ document.addEventListener("mousemove", function(e) {
   if (ttEl && ttEl.style.display !== "none") positionTooltip(e);
 });
 
-document.addEventListener("mouseout", function(e) {
-  const row = e.target.closest(".tank-row[data-tank-id]");
-  if (!row) return;
-  if (e.relatedTarget && row.contains(e.relatedTarget)) return;
-  const ttEl = getTtEl();
-  _ttTarget = null; clearTimeout(_ttTimer);
-  if (ttEl) ttEl.style.display = "none";
+document.addEventListener("mouseover", function(e) {
+  // Hide tooltip when moving to an element outside any tank-row
+  if (!e.target.closest(".tank-row[data-tank-id]")) {
+    const ttEl = getTtEl();
+    if (ttEl) ttEl.style.display = "none";
+    _ttTarget = null;
+    clearTimeout(_ttTimer);
+  }
 });
 </script>
 </body>
