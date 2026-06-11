@@ -2614,7 +2614,7 @@ document.addEventListener("mousemove", function(e) {
   _ttTimer = setTimeout(() => {
     fetchShiftData(siteIdx, tankId)
       .then(data => { if (_ttTarget === row) { const tt = getTtEl(); if (tt) { tt.innerHTML = buildTooltipHTML(delivTxt, data); positionTooltip(e); }}})
-      .catch(()  => { if (_ttTarget === row) { const tt = getTtEl(); if (tt)   tt.innerHTML = buildTooltipHTML(delivTxt, null); }});
+      .catch((err)  => { console.error("Shift fetch failed:", err); if (_ttTarget === row) { const tt = getTtEl(); if (tt) tt.innerHTML = buildTooltipHTML(delivTxt, null); }});
   }, 200);
 });
 </script>
