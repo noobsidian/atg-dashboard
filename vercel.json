@@ -1,15 +1,17 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/tanks.js", "use": "@vercel/node" },
-    { "src": "api/flags.js", "use": "@vercel/node" },
-    { "src": "public/**", "use": "@vercel/static" }
+    { "src": "api/tanks.js",  "use": "@vercel/node" },
+    { "src": "api/flags.js",  "use": "@vercel/node" },
+    { "src": "api/shift.js",  "use": "@vercel/node" },
+    { "src": "public/**",     "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/tanks", "dest": "/api/tanks.js" },
-    { "src": "/api/flags", "dest": "/api/flags.js" },
-    { "src": "/vendor", "dest": "/public/vendor.html" },
-    { "src": "/", "dest": "/public/index.html" },
-    { "src": "/(.*)", "dest": "/public/index.html" }
+    { "src": "/api/tanks",  "dest": "/api/tanks.js" },
+    { "src": "/api/flags",  "dest": "/api/flags.js" },
+    { "src": "/api/shift",  "dest": "/api/shift.js" },
+    { "src": "/vendor",     "dest": "/public/vendor.html" },
+    { "src": "/",           "dest": "/public/index.html" },
+    { "src": "/(.*)",       "dest": "/public/index.html" }
   ]
 }
