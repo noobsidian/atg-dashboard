@@ -706,6 +706,29 @@ body.light .copy-btn-contract:hover { background: #e0f7fa !important; }
 body.light .water-warn { color: #0a5a9c; }
 body.light .water-warn-high { color: #c0392b !important; }
 .water-row { margin-top: 2px; padding-left: 2px; }
+
+/* ── Floating tooltip ────────────────────────────────────────────── */
+#tank-tooltip {
+  position: fixed; z-index: 9000;
+  background: #0a1628; color: #e0e0e0;
+  border: 1px solid #324a5f; border-radius: 8px;
+  padding: 10px 14px; font-size: 11px; line-height: 1.7;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  pointer-events: none; min-width: 230px; max-width: 300px;
+  display: none; white-space: nowrap;
+}
+body.light #tank-tooltip { background: #fff; color: #1a1a2e; border-color: #b0c8e0; }
+.tt-section-hdr {
+  font-size: 10px; font-weight: bold; text-transform: uppercase;
+  letter-spacing: 0.5px; color: #03a9f4;
+  margin-top: 6px; padding-top: 6px; border-top: 1px solid #253a4f;
+}
+body.light .tt-section-hdr { color: #0a5a9c; border-color: #d0e4f4; }
+.tt-day-row { display: flex; justify-content: space-between; gap: 24px; }
+.tt-day { color: #b0b0b0; }
+.tt-gal { color: #e0e0e0; font-weight: bold; }
+body.light .tt-gal { color: #1a1a2e; }
+.tt-loading { color: #7a9bbf; font-style: italic; }
 </style>
 </head>
 <body>
@@ -2447,3 +2470,112 @@ document.getElementById("copy-contract-order-btn").addEventListener("click", fun
   document.getElementById("order-modal").style.display = "flex";
 });
 </script>
+
+<!-- Floating tank tooltip -->
+<div id="tank-tooltip"></div>
+
+<!-- Gallons prompt modal -->
+<div id="gallons-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:360px">
+    <div class="modal-hdr">
+      <span class="modal-title">&#128666; Mark as On Order</span>
+      <button id="gallons-modal-close" class="modal-close">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:18px">
+      <div style="font-size:13px;color:#b0b0b0;margin-bottom:14px" id="gallons-modal-desc"></div>
+      <label style="font-size:12px;color:#8ab0d0;display:block;margin-bottom:6px">Gallons ordered <span style="color:#4a6a8a">(optional)</span></label>
+      <input id="gallons-input" type="number" min="0" step="100"
+        style="width:100%;padding:8px 10px;background:#0f3460;border:1px solid #324a5f;border-radius:6px;color:#fff;font-size:14px"
+        placeholder="e.g. 4700">
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button id="gallons-confirm-btn" class="modal-copy-btn" style="flex:1;padding:8px">&#10003; Confirm Order</button>
+        <button id="gallons-cancel-btn" class="modal-close" style="padding:8px 14px">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Gallons modal wiring ───────────────────────────────────────────────────
+document.getElementById("gallons-confirm-btn").addEventListener("click", confirmGallonsModal);
+document.getElementById("gallons-modal-close").addEventListener("click", closeGallonsModal);
+document.getElementById("gallons-cancel-btn").addEventListener("click", closeGallonsModal);
+document.getElementById("gallons-modal").addEventListener("click", function(e) { if (e.target === this) closeGallonsModal(); });
+document.getElementById("gallons-input").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") confirmGallonsModal();
+  if (e.key === "Escape") closeGallonsModal();
+});
+
+// ── Shift tooltip ──────────────────────────────────────────────────────────
+const shiftCache = {}, SHIFT_TTL = 5 * 60 * 1000;
+const DAY_ORDER  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const ttEl       = document.getElementById("tank-tooltip");
+let _ttTarget = null, _ttTimer = null;
+
+function positionTooltip(e) {
+  if (!ttEl || ttEl.style.display === "none") return;
+  const m = 12, w = ttEl.offsetWidth, h = ttEl.offsetHeight;
+  let x = e.clientX + m, y = e.clientY - h / 2;
+  if (x + w > window.innerWidth  - m) x = e.clientX - w - m;
+  if (y < m) y = m;
+  if (y + h > window.innerHeight - m) y = window.innerHeight - h - m;
+  ttEl.style.left = x + "px"; ttEl.style.top = y + "px";
+}
+
+function buildTooltipHTML(delivText, shiftData) {
+  let html = delivText ? delivText.replace(/\n/g, "<br>") : "";
+  if (shiftData === "loading") {
+    html += (html ? "<br><br>" : "") + '<span class="tt-loading">Loading shift data\u2026</span>';
+  } else if (shiftData && typeof shiftData === "object") {
+    const rows = DAY_ORDER.map(day => {
+      const d = shiftData[day];
+      if (!d) return null;
+      const note = d.periods < 3 ? " <span style='color:#7a9bbf;font-size:9px'>(" + d.periods + "wk)</span>" : "";
+      return "<div class='tt-day-row'><span class='tt-day'>" + day + "</span><span class='tt-gal'>" + d.avg.toLocaleString() + " G" + note + "</span></div>";
+    }).filter(Boolean);
+    if (rows.length > 0) html += (html ? "<br>" : "") + "<div class='tt-section-hdr'>Avg Daily (3-wk)</div>" + rows.join("");
+  }
+  return html;
+}
+
+async function fetchShiftData(siteIdx, tankId) {
+  const key = siteIdx + "|" + tankId;
+  const cached = shiftCache[key];
+  if (cached && (Date.now() - cached.ts) < SHIFT_TTL) return cached.data;
+  const params = "?site=" + siteIdx + "&tank=" + tankId + (DASH_TOKEN ? "&token=" + encodeURIComponent(DASH_TOKEN) : "");
+  const resp = await fetch("/api/shift" + params, { cache: "no-store" });
+  if (!resp.ok) throw new Error("Shift error " + resp.status);
+  const json = await resp.json();
+  if (!json.ok) throw new Error(json.error || "Shift fetch failed");
+  shiftCache[key] = { data: json.data, ts: Date.now() };
+  return json.data;
+}
+
+document.addEventListener("mouseover", function(e) {
+  const row = e.target.closest(".tank-row[data-tank-id]");
+  if (!row || row.classList.contains("waste-oil-row")) return;
+  const siteIdx  = row.dataset.siteIdx;
+  const tankId   = row.dataset.tankId;
+  const delivTxt = row.dataset.deliveryText || "";
+  if (siteIdx === "" || siteIdx === undefined || !tankId) return;
+  _ttTarget = row;
+  ttEl.innerHTML = buildTooltipHTML(delivTxt, "loading");
+  ttEl.style.display = "block";
+  positionTooltip(e);
+  clearTimeout(_ttTimer);
+  _ttTimer = setTimeout(() => {
+    fetchShiftData(siteIdx, tankId)
+      .then(data => { if (_ttTarget === row) { ttEl.innerHTML = buildTooltipHTML(delivTxt, data); positionTooltip(e); }})
+      .catch(() => { if (_ttTarget === row) ttEl.innerHTML = buildTooltipHTML(delivTxt, null); });
+  }, 150);
+});
+
+document.addEventListener("mousemove", function(e) { if (ttEl.style.display !== "none") positionTooltip(e); });
+document.addEventListener("mouseout", function(e) {
+  const row = e.target.closest(".tank-row[data-tank-id]");
+  if (!row) return;
+  if (e.relatedTarget && row.contains(e.relatedTarget)) return;
+  _ttTarget = null; clearTimeout(_ttTimer); ttEl.style.display = "none";
+});
+</script>
+</body>
