@@ -360,29 +360,51 @@ body.light .cap-tag { background: #e8f4ff; color: #0a5a9c; border-color: #b0c8e0
   border-radius: 0;
 }
 
-/* ── Floating tooltip ────────────────────────────────────────────── */
-.tank-row { cursor: default; }
-#tank-tooltip {
-  position: fixed; z-index: 9000;
-  background: #0a1628; color: #e0e0e0;
-  border: 1px solid #324a5f; border-radius: 8px;
-  padding: 10px 14px; font-size: 11px; line-height: 1.7;
+/* ── Delivery tooltip ────────────────────────────────────────────── */
+.tank-row[data-tooltip] { cursor: default; }
+.tank-row[data-tooltip] { position: relative; }
+
+.tank-row[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  background: #0a1628;
+  color: #e0e0e0;
+  border: 1px solid #324a5f;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre;
+  z-index: 200;
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  pointer-events: none; min-width: 230px; max-width: 300px;
-  display: none; white-space: nowrap;
+  pointer-events: none;
+  min-width: 220px;
 }
-body.light #tank-tooltip { background: #fff; color: #1a1a2e; border-color: #b0c8e0; }
-.tt-section-hdr {
-  font-size: 10px; font-weight: bold; text-transform: uppercase;
-  letter-spacing: 0.5px; color: #03a9f4;
-  margin-top: 6px; padding-top: 6px; border-top: 1px solid #253a4f;
+
+.tank-row[data-tooltip]:hover::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #324a5f;
+  z-index: 201;
+  pointer-events: none;
 }
-body.light .tt-section-hdr { color: #0a5a9c; border-color: #d0e4f4; }
-.tt-day-row { display: flex; justify-content: space-between; gap: 24px; }
-.tt-day { color: #b0b0b0; }
-.tt-gal { color: #e0e0e0; font-weight: bold; }
-body.light .tt-gal { color: #1a1a2e; }
-.tt-loading { color: #7a9bbf; font-style: italic; }
+
+body.light .tank-row[data-tooltip]:hover::after {
+  background: #fff;
+  color: #1a1a2e;
+  border-color: #b0c8e0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+body.light .tank-row[data-tooltip]:hover::before {
+  border-top-color: #b0c8e0;
+}
 
 /* ── Product filters ─────────────────────────────────────────────── */
 .copy-bar {
@@ -723,7 +745,7 @@ body.light .water-warn-high { color: #c0392b !important; }
 <div class="copy-bar">
   <div id="product-filters" class="product-filters" style="display:none"></div>
   <div class="copy-buttons">
-  <button id="copy-levels-btn" class="copy-btn">&#11015; Download Tank Levels CSV</button>
+  <button id="copy-levels-btn" class="copy-btn">&#128203; Copy Tank Levels</button>
   <button id="copy-alarms-btn" class="copy-btn">&#128203; Copy Alarms</button>
   <button id="copy-fuel-order-btn" class="copy-btn copy-btn-order">&#128203; Copy Fuel Order</button>
   <button id="copy-lube-order-btn" class="copy-btn copy-btn-lube">&#128203; Copy Lube/Fluid Order</button>
@@ -817,15 +839,14 @@ body.light .water-warn-high { color: #c0392b !important; }
 const DASH_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
 
 // ── Render proxy fetch ─────────────────────────────────────────────────────
-// ── Per-site progressive loading ──────────────────────────────────────────
-const PROXY_BASE = "/api/tanks";
+const PROXY_URL = "/api/tanks";
 
-async function fetchSiteFromProxy(siteIdx) {
-  const params = '?site=' + siteIdx + (DASH_TOKEN ? '&token=' + encodeURIComponent(DASH_TOKEN) : '');
-  const ctrl   = new AbortController();
-  const tid    = setTimeout(() => ctrl.abort(), 30000);
+async function fetchAllFromProxy() {
+  const url  = PROXY_URL + (DASH_TOKEN ? '?token=' + encodeURIComponent(DASH_TOKEN) : '');
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), 25000);
   try {
-    const resp = await fetch(PROXY_BASE + params, { cache: "no-store", signal: ctrl.signal });
+    const resp = await fetch(url, { cache: "no-store", signal: ctrl.signal });
     clearTimeout(tid);
     if (!resp.ok) throw new Error(resp.status === 401 ? "Invalid or missing token \u2014 check your URL" : "Proxy error " + resp.status);
     return await resp.json();
@@ -1152,12 +1173,11 @@ async function fetchSite(site) {
         grossHeight: t.grossHeight != null ? t.grossHeight.toFixed(2) : null,
         probeLength:   getProbeLength(site.url, t.tankNum),
         capacityCap:   (override && override.capacityCap) ? override.capacityCap : null,
-        capacity:      cap,
         lastDelivery:    (deliveryMap[t.tankNum] && deliveryMap[t.tankNum].length > 0) ? deliveryMap[t.tankNum][0] : null,
         deliveryHistory: deliveryMap[t.tankNum] || [],
         waterHeight:     t.waterHeight != null ? t.waterHeight : null,
         waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
-      });
+        _siteIdx:        SITES.findIndex(s => s.url === site.url),
     });
     result.tanks.sort((a, b) => {
       const aLast = a.override && a.override.sortLast ? 1 : 0;
@@ -1411,6 +1431,13 @@ async function clearOrderFlag(siteUrl, tankId) {
     .catch(e => console.warn("Flag clear failed:", e));
 }
 
+async function clearAllOrderFlags(siteUrl, tankId) {
+  const key = flagCacheKey(siteUrl, tankId);
+  delete flagCache[key];
+  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
+  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
+}
+
 const MIN_DELIVERY_GALLONS = 200;
 
 function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
@@ -1459,14 +1486,6 @@ function confirmGallonsModal() {
   });
 }
 
-async function clearAllOrderFlags(siteUrl, tankId) {
-  const key = flagCacheKey(siteUrl, tankId);
-  delete flagCache[key];
-  // Two DELETEs to clear both orders server-side (FIFO on each call)
-  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
-  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
-}
-
 // ── Long-press to clear all orders ────────────────────────────────────────
 const LONG_PRESS_MS = 600;
 let _lpTimer = null, _lpBtn = null, _lpFired = false;
@@ -1474,16 +1493,14 @@ let _lpTimer = null, _lpBtn = null, _lpFired = false;
 document.addEventListener("mousedown", function(e) {
   const btn = e.target.closest(".order-flag-btn");
   if (!btn || !btn.classList.contains("order-flag-active")) return;
-  _lpBtn   = btn;
-  _lpFired = false;
+  _lpBtn = btn; _lpFired = false;
   btn.style.transition = "background " + LONG_PRESS_MS + "ms";
   btn.style.background = "rgba(244,67,54,0.3)";
   _lpTimer = setTimeout(() => {
     _lpFired = true;
     const siteUrl = decodeURIComponent(btn.dataset.site || "");
     const tankId  = btn.dataset.tank;
-    btn.style.background = "";
-    btn.style.transition = "";
+    btn.style.background = ""; btn.style.transition = "";
     clearAllOrderFlags(siteUrl, tankId).then(() => {
       allSiteResults.forEach((result, i) => {
         if (!result || result.url !== siteUrl) return;
@@ -1494,19 +1511,19 @@ document.addEventListener("mousedown", function(e) {
   }, LONG_PRESS_MS);
 });
 
-document.addEventListener("mouseup", function(e) {
+document.addEventListener("mouseup", function() {
   if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
   if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
 });
 
-document.addEventListener("mouseleave", function(e) {
+document.addEventListener("mouseleave", function() {
   if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
   if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
 }, true);
 
 // Toggle flag on click
 document.addEventListener("click", function(e) {
-  if (_lpFired) { _lpFired = false; return; } // long-press already handled
+  if (_lpFired) { _lpFired = false; return; }
   const btn = e.target.closest(".order-flag-btn");
   if (!btn) return;
   const siteUrl = decodeURIComponent(btn.dataset.site || "");
@@ -1613,35 +1630,6 @@ function buildTankRow(t) {
     +   flagBtn
     + "</div>"
     + "</div>";
-    + "<div>"
-    +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
-    +   "<div class='t-type'>Tank " + t.id + "</div>"
-    +   "<span class='status-badge " + sbc + "'>" + t.status + "</span>"
-    + "</div>"
-    + "<div>"
-    +   (t.capacityCap
-      ? (function() {
-          var physCap  = (t.override && t.override.physicalCapacity) ? t.override.physicalCapacity : t.capacityCap;
-          // Actual fill as % of physical capacity using raw gallons
-          var physPct  = Math.min((t.vol / physCap) * 100, 100);
-          // Cap line position as % of physical capacity bar width
-          var capPct   = Math.min((t.capacityCap / physCap) * 100, 100);
-          // Fill bar capped at the cap line
-          var fillPct  = Math.min(physPct, capPct);
-          // Any volume above cap shown in red
-          var overPct  = Math.max(0, physPct - capPct);
-          return "<div class='bar-wrap bar-wrap-capped' style='overflow:visible;position:relative'>"            + "<div class='bar-fill' style='width:" + fillPct.toFixed(2) + "%;background:" + col + ";position:absolute;top:0;bottom:0;left:0'></div>"            + (overPct > 0 ? "<div style='position:absolute;top:0;bottom:0;left:" + capPct.toFixed(2) + "%;width:" + overPct.toFixed(2) + "%;background:#f44336;z-index:2'></div>" : "")            + "<div class='bar-cap-zone' style='left:" + capPct.toFixed(2) + "%;width:" + (100 - capPct).toFixed(2) + "%'></div>"            + "<div class='bar-cap-line' style='left:" + capPct.toFixed(2) + "%'></div>"            + "</div>";
-        })()
-      : "<div class='bar-wrap'><div class='bar-fill' style='width:" + pctSafe + "%;background:" + col + "'></div></div>")
-    +   "<div class='t-ullage'><span class='t-ullage-label'>Ullage</span><span class='t-ullage-val'>" + t.ullage.toLocaleString() + " G</span>" + tempStr + inchesStr(t) + "</div>"
-    +   (t.waterHeight && t.waterHeight >= 0.5 ? "<div class='water-row'><span class='water-warn" + (t.waterHeight >= 1.0 ? " water-warn-high" : "") + "'> &#128167; Water: " + t.waterHeight.toFixed(2) + "\"" + (t.waterVolume ? "  (" + t.waterVolume + " G)" : "") + "</span></div>" : "")
-    + "</div>"
-    + "<div class='t-right'>"
-    +   "<div class='t-vol'>" + t.vol.toLocaleString() + " G</div>"
-    +   "<div class='t-pct'>" + t.pct + "%</div>"
-    +   flagBtn
-    + "</div>"
-    + "</div>";
 }
 
 function buildCardHTML(site) {
@@ -1733,7 +1721,169 @@ function applyRefreshRate() {
 
 // ── Main fetch ─────────────────────────────────────────────────────────────
 
+async function fetchAll() {
+  clearInterval(refreshTimer);
+  clearInterval(countTimer);
+  const btn = document.getElementById("refresh-btn");
+  btn.disabled = true;
+  btn.textContent = "Loading\u2026";
+  allSiteResults = new Array(SITES.length);
+  const grid = document.getElementById("site-grid");
+  grid.innerHTML = "";
+  SITES.forEach((s, i) => {
+    const card = document.createElement("div");
+    card.className = "site-card";
+    card.id = "card-" + i;
+    card.innerHTML = "<div class='site-hdr'>"
+      + "<div><div class='site-name'>" + s.name + "</div><div class='site-addr'>" + s.addr + "</div></div>"
+      + "<span class='badge b-loading pulse'>Loading\u2026</span>"
+      + "</div><div class='placeholder'>Fetching data\u2026</div>";
+    grid.appendChild(card);
+  });
+  let online = 0, tanks = 0, alarmCount = 0, lowFuel = 0, totalVol = 0;
 
+  // Flags loaded on init and after toggle — not on every refresh
+
+  let proxyResults;
+  try {
+    proxyResults = await fetchAllFromProxy();
+  } catch(e) {
+    // Mark all sites as errored
+    SITES.forEach((s, i) => {
+      allSiteResults[i] = { name: s.name, addr: s.addr, url: s.url, tanks: [], alarms: [], error: "Proxy unreachable: " + e.message };
+      const card = document.getElementById("card-" + i);
+      if (card) card.innerHTML = buildCardHTML(allSiteResults[i]);
+    });
+    document.getElementById("s-online").textContent = 0;
+    document.getElementById("s-online").style.color = "#f44336";
+    return;
+  }
+
+  // Process each site result from proxy — parse fuel types and alarms client-side
+  proxyResults.forEach((proxyResult, i) => {
+    let result = { name: proxyResult.name, addr: proxyResult.addr, url: proxyResult.url, tanks: [], alarms: [], error: proxyResult.error || null };
+
+    if (!proxyResult.error && proxyResult.cgiData && proxyResult.cgiData.tankData) {
+      const fuelMap     = proxyResult.invHtml ? parseFuelTypes(proxyResult.invHtml) : {};
+      const deliveryMap = proxyResult.invHtml ? parseDeliveryData(proxyResult.invHtml) : {};
+      result.alarms     = Array.isArray(proxyResult.alarms) ? parseProxyAlarms(proxyResult.alarms) : [];
+      const volUnits    = proxyResult.cgiData.volUnitsStr || "G";
+
+      proxyResult.cgiData.tankData.forEach(t => {
+        const cap      = t.capacity || 1;
+        const gross    = t.grossVolume || 0;
+        const pct      = Math.round((gross / cap) * 1000) / 10;
+        const override = getTankOverride(proxyResult.url, t.tankNum);
+        const cap2     = (override && override.capacityCap) ? override.capacityCap : cap;
+        const pctCapped = Math.min(Math.round((gross / cap2) * 1000) / 10, 100);
+        const ullageCapped = Math.max(0, Math.round(cap2 * 0.9 - gross));
+
+        result.tanks.push({
+          id:          t.tankNum,
+          fuelType:    normalizeFuelType(fuelMap[t.tankNum] || t.fuelType || "Tank " + t.tankNum),
+          vol:         Math.round(t.productVolume || gross),
+          pct:         pctCapped,
+          ullage:      (override && override.capacityCap) ? ullageCapped : Math.round(t.adjustedUllage || 0),
+          temp:        t.averageTemp != null ? t.averageTemp.toFixed(1) : null,
+          fuelColor:   t.fuelColor || barColor(pctCapped),
+          status:      t.statusIndStr || "Normal",
+          severity:    t.statusIndSeverity || "Normal",
+          volUnits:    volUnits,
+          override:    override,
+          grossHeight: t.grossHeight != null ? t.grossHeight.toFixed(2) : null,
+          probeLength: getProbeLength(proxyResult.url, t.tankNum),
+          capacityCap: (override && override.capacityCap) ? override.capacityCap : null,
+          lastDelivery:   (deliveryMap[t.tankNum] && deliveryMap[t.tankNum].length > 0) ? deliveryMap[t.tankNum][0] : null,
+          deliveryHistory: deliveryMap[t.tankNum] || [],
+          waterHeight:     t.waterHeight != null ? t.waterHeight : null,
+          waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
+          _siteUrl:    proxyResult.url,
+        });
+      });
+
+      result.tanks.sort((a, b) => {
+        const aLast = a.override && a.override.sortLast ? 1 : 0;
+        const bLast = b.override && b.override.sortLast ? 1 : 0;
+        if (aLast !== bLast) return aLast - bLast;
+        return a.id - b.id;
+      });
+
+      // Supplement alarms with statusCondsList entries from CGI tank data
+      // This catches alarms like Delivery Needed that appear in tank status
+      // but may not surface through the getAlarms.php endpoint
+      proxyResult.cgiData.tankData.forEach(t => {
+        if (!t.statusCondsList || !Array.isArray(t.statusCondsList)) return;
+        const override = getTankOverride(proxyResult.url, t.tankNum);
+        if (override && override.isWasteOil) return;
+        const tankObj = result.tanks.find(rt => rt.id === t.tankNum);
+        if (!tankObj) return;
+
+        t.statusCondsList.forEach(cond => {
+          const desc = cond.statusIndStr || "";
+          const sev  = (cond.statusIndSeverity || "Normal").toLowerCase();
+          if (sev === "normal" || desc.toLowerCase() === "normal") return;
+
+          // Check if this condition is already in alarms list
+          const already = result.alarms.some(a =>
+            String(a.tankNum) === String(t.tankNum) &&
+            a.description.toLowerCase() === desc.toLowerCase()
+          );
+          if (already) return;
+
+          result.alarms.push({
+            logNum:     String(t.tankNum),
+            tankNum:    String(t.tankNum),
+            label:      tankObj.fuelType,
+            tankLabel:  tankObj.fuelType,
+            description: desc,
+            category:   "Tank",
+            severity:   sev === "warning" ? "warning" : "alarm",
+            timeActive: "",
+          });
+        });
+      });
+    }
+
+    allSiteResults[i] = result;
+    const card = document.getElementById("card-" + i);
+    if (card) card.innerHTML = buildCardHTML(result);
+
+    if (!result.error) {
+      online++;
+      result.tanks.forEach(t => {
+        tanks++;
+        if (!t.override || !t.override.isWasteOil) {
+          totalVol += t.vol;
+          if (t.pct < 25) lowFuel++;
+        }
+      });
+      alarmCount += (result.alarms || []).length;
+      alarmCount += result.tanks.filter(t => t.override && t.override.isWasteOil && t.pct >= t.override.highAlertPct).length;
+    }
+
+    document.getElementById("s-online").textContent  = online;
+    document.getElementById("s-online").style.color  = online < SITES.length ? "#f44336" : "#fff";
+    document.getElementById("s-tanks").textContent   = tanks || "\u2014";
+    document.getElementById("s-alarms").textContent  = alarmCount;
+    document.getElementById("s-alarms").style.color  = alarmCount > 0 ? "#f44336" : "#fff";
+    document.getElementById("s-low").textContent     = lowFuel;
+    document.getElementById("s-low").style.color     = lowFuel > 0 ? "#ff9800" : "#fff";
+    document.getElementById("s-total-vol").textContent = totalVol > 0 ? totalVol.toLocaleString() : "\u2014";
+  });
+  const now = new Date();
+  document.getElementById("ts").textContent =
+    now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
+  btn.disabled = false;
+  btn.textContent = "\u27f3 Refresh All";
+  buildFilterPills();
+  applyProductFilter();
+  startAutoRefresh();
+}
+
+document.getElementById("refresh-btn").addEventListener("click", fetchAll);
+
+// Load flags once on startup
+try { loadAllFlags(); } catch(e) {}
 document.getElementById("refresh-select").addEventListener("change", applyRefreshRate);
 
 // ── Restore saved refresh rate ─────────────────────────────────────────────
@@ -1848,38 +1998,38 @@ function showCopyConfirm(msg) {
 }
 
 function copyTankLevels() {
-  const now  = new Date();
-  const mm   = String(now.getMonth() + 1).padStart(2, "0");
-  const dd   = String(now.getDate()).padStart(2, "0");
-  const yyyy = now.getFullYear();
-  const tStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-  const ts   = mm + "/" + dd + "/" + yyyy + " " + tStr;
-  function q(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }
-  const rows = [];
-  rows.push(q("COR FLEET ATG TANK LEVELS \u2014 " + ts) + ",,,,");
-  rows.push("," + q("Inches") + "," + q("Level (G)") + "," + q("Ullage (G)") + "," + q("Ullage %") + "," + q("Tank Size"));
+  const now = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  let text = "FLEET ATG TANK LEVELS — " + now + "\n";
+  text += "=".repeat(52) + "\n\n";
   allSiteResults.forEach(result => {
     if (!result) return;
-    rows.push(q(result.name + ", " + result.addr) + ",,,,");
-    if (result.error) { rows.push(q("[OFFLINE \u2014 " + result.error + "]") + ",,,,"); return; }
-    result.tanks.forEach(tank => {
-      const ov       = tank.override;
-      const tankSize = (tank.capacityCap || tank.capacity || 0).toLocaleString();
-      const inStr    = tank.grossHeight ? tank.grossHeight + "\"" + (tank.probeLength ? " / " + tank.probeLength + "\"" : "") : "";
-      const ullPct   = tank.capacity ? Math.round((tank.ullage / tank.capacity) * 100) + "%" : "";
-      const label    = "Tank " + tank.id + " - " + tank.fuelType + (ov && ov.isWasteOil ? " (WASTE)" : "");
-      rows.push(q(label) + "," + q(inStr) + "," + q(tank.vol.toLocaleString()) + "," + q(tank.ullage.toLocaleString()) + "," + q(ullPct) + "," + q(tankSize));
-    });
+    text += result.name + "\n";
+    text += result.addr + "\n";
+    if (result.error) {
+      text += "  [OFFLINE — " + result.error + "]\n";
+    } else {
+      result.tanks.forEach(t => {
+        const ov = t.override;
+        if (ov && ov.isWasteOil) {
+          const status = t.pct >= ov.highAlertPct ? "DRAIN NEEDED" : "OK";
+          text += "  Tank " + t.id + " (" + t.fuelType + " WASTE)\n";
+          text += "    Level:  " + t.pct + "%  |  " + t.vol.toLocaleString() + " G\n";
+          text += "    Status: " + status + "\n";
+        } else {
+          const inStr = t.grossHeight ? t.grossHeight + "\"" + (t.probeLength ? " / " + t.probeLength + "\"" : "") : "";
+          text += "  Tank " + t.id + " — " + t.fuelType + "\n";
+          text += "    Level:  " + t.pct + "%  |  " + t.vol.toLocaleString() + " G\n";
+          text += "    Ullage: " + t.ullage.toLocaleString() + " G";
+          if (inStr) text += "  |  IN: " + inStr;
+          if (t.temp) text += "  |  " + t.temp + "\u00b0F";
+          text += "\n";
+          text += "    Status: " + t.status + "\n";
+        }
+      });
+    }
+    text += "\n";
   });
-  const text  = rows.join("\n");
-  const fname = "ATG_Tank_Levels_" + yyyy + mm + dd + ".csv";
-  const blob  = new Blob([text], { type: "text/csv;charset=utf-8;" });
-  const url   = URL.createObjectURL(blob);
-  const a     = document.createElement("a");
-  a.href = url; a.download = fname; a.style.display = "none";
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-  showCopyConfirm("CSV downloaded");
+  navigator.clipboard.writeText(text).then(() => showCopyConfirm("Tank levels copied"));
 }
 
 // Keywords to exclude from Copy Alarms (handled by Copy Order instead)
@@ -1935,6 +2085,9 @@ function copyAlarms() {
 
 document.getElementById("copy-levels-btn").addEventListener("click", copyTankLevels);
 document.getElementById("copy-alarms-btn").addEventListener("click", copyAlarms);
+
+// Start
+fetchAll();
 
 // ── Product filter ─────────────────────────────────────────────────────────
 
@@ -2244,213 +2397,6 @@ document.getElementById("order-modal-copy").addEventListener("click", function()
   });
 });
 
-</script>
-<!-- Floating tank tooltip -->
-<div id="tank-tooltip"></div>
-
-<!-- Gallons prompt modal -->
-<div id="gallons-modal" class="modal-overlay" style="display:none">
-  <div class="modal-box" style="max-width:360px">
-    <div class="modal-hdr">
-      <span class="modal-title">&#128666; Mark as On Order</span>
-      <button id="gallons-modal-close" class="modal-close">&#10005;</button>
-    </div>
-    <div class="modal-body" style="padding:18px">
-      <div style="font-size:13px;color:#b0b0b0;margin-bottom:14px" id="gallons-modal-desc"></div>
-      <label style="font-size:12px;color:#8ab0d0;display:block;margin-bottom:6px">Gallons ordered <span style="color:#4a6a8a">(optional)</span></label>
-      <input id="gallons-input" type="number" min="0" step="100"
-        style="width:100%;padding:8px 10px;background:#0f3460;border:1px solid #324a5f;border-radius:6px;color:#fff;font-size:14px"
-        placeholder="e.g. 4700">
-      <div style="display:flex;gap:10px;margin-top:16px">
-        <button id="gallons-confirm-btn" class="modal-copy-btn" style="flex:1;padding:8px">&#10003; Confirm Order</button>
-        <button id="gallons-cancel-btn" class="modal-close" style="padding:8px 14px">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-// ── Gallons modal wiring ───────────────────────────────────────────────────
-document.getElementById("gallons-confirm-btn").addEventListener("click", confirmGallonsModal);
-document.getElementById("gallons-modal-close").addEventListener("click", closeGallonsModal);
-document.getElementById("gallons-cancel-btn").addEventListener("click", closeGallonsModal);
-document.getElementById("gallons-modal").addEventListener("click", function(e) { if (e.target === this) closeGallonsModal(); });
-document.getElementById("gallons-input").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") confirmGallonsModal();
-  if (e.key === "Escape") closeGallonsModal();
-});
-
-// ── Shift tooltip ──────────────────────────────────────────────────────────
-const shiftCache = {}, SHIFT_TTL = 5 * 60 * 1000;
-const DAY_ORDER  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const ttEl       = document.getElementById("tank-tooltip");
-let _ttTarget = null, _ttTimer = null;
-
-function positionTooltip(e) {
-  if (!ttEl || ttEl.style.display === "none") return;
-  const m = 12, w = ttEl.offsetWidth, h = ttEl.offsetHeight;
-  let x = e.clientX + m, y = e.clientY - h / 2;
-  if (x + w > window.innerWidth  - m) x = e.clientX - w - m;
-  if (y < m) y = m;
-  if (y + h > window.innerHeight - m) y = window.innerHeight - h - m;
-  ttEl.style.left = x + "px"; ttEl.style.top = y + "px";
-}
-
-function buildTooltipHTML(delivText, shiftData) {
-  let html = delivText ? delivText.replace(/\n/g, "<br>") : "";
-  if (shiftData === "loading") {
-    html += (html ? "<br><br>" : "") + '<span class="tt-loading">Loading shift data\u2026</span>';
-  } else if (shiftData && typeof shiftData === "object") {
-    const rows = DAY_ORDER.map(day => {
-      const d = shiftData[day];
-      if (!d) return null;
-      const note = d.periods < 3 ? " <span style='color:#7a9bbf;font-size:9px'>(" + d.periods + "wk)</span>" : "";
-      return "<div class='tt-day-row'><span class='tt-day'>" + day + "</span><span class='tt-gal'>" + d.avg.toLocaleString() + " G" + note + "</span></div>";
-    }).filter(Boolean);
-    if (rows.length > 0) html += (html ? "<br>" : "") + "<div class='tt-section-hdr'>Avg Daily (3-wk)</div>" + rows.join("");
-  }
-  return html;
-}
-
-async function fetchShiftData(siteIdx, tankId) {
-  const key = siteIdx + "|" + tankId;
-  const cached = shiftCache[key];
-  if (cached && (Date.now() - cached.ts) < SHIFT_TTL) return cached.data;
-  const params = "?site=" + siteIdx + "&tank=" + tankId + (DASH_TOKEN ? "&token=" + encodeURIComponent(DASH_TOKEN) : "");
-  const resp = await fetch("/api/shift" + params, { cache: "no-store" });
-  if (!resp.ok) throw new Error("Shift error " + resp.status);
-  const json = await resp.json();
-  if (!json.ok) throw new Error(json.error || "Shift fetch failed");
-  shiftCache[key] = { data: json.data, ts: Date.now() };
-  return json.data;
-}
-
-document.addEventListener("mouseover", function(e) {
-  const row = e.target.closest(".tank-row[data-tank-id]");
-  if (!row || row.classList.contains("waste-oil-row")) return;
-  const siteIdx = row.dataset.siteIdx, tankId = row.dataset.tankId;
-  const delivTxt = row.dataset.deliveryText || "";
-  if (!siteIdx || !tankId) return;
-  _ttTarget = row;
-  ttEl.innerHTML = buildTooltipHTML(delivTxt, "loading");
-  ttEl.style.display = "block";
-  positionTooltip(e);
-  clearTimeout(_ttTimer);
-  _ttTimer = setTimeout(() => {
-    fetchShiftData(siteIdx, tankId)
-      .then(data => { if (_ttTarget === row) { ttEl.innerHTML = buildTooltipHTML(delivTxt, data); positionTooltip(e); }})
-      .catch(() => { if (_ttTarget === row) ttEl.innerHTML = buildTooltipHTML(delivTxt, null); });
-  }, 150);
-});
-
-document.addEventListener("mousemove", function(e) { if (ttEl.style.display !== "none") positionTooltip(e); });
-document.addEventListener("mouseout", function(e) {
-  const row = e.target.closest(".tank-row[data-tank-id]");
-  if (!row) return;
-  if (e.relatedTarget && row.contains(e.relatedTarget)) return;
-  _ttTarget = null; clearTimeout(_ttTimer); ttEl.style.display = "none";
-});
-
-// ── Progressive site loading ───────────────────────────────────────────────
-function processSiteResult(proxyResult, i) {
-  const result = { name: proxyResult.name, addr: proxyResult.addr, url: proxyResult.url, tanks: [], alarms: [], error: proxyResult.error || null };
-  if (!proxyResult.error && proxyResult.cgiData && proxyResult.cgiData.tankData) {
-    const fuelMap     = proxyResult.invHtml ? parseFuelTypes(proxyResult.invHtml) : {};
-    const deliveryMap = proxyResult.invHtml ? parseDeliveryData(proxyResult.invHtml) : {};
-    result.alarms     = Array.isArray(proxyResult.alarms) ? parseProxyAlarms(proxyResult.alarms) : [];
-    const volUnits    = proxyResult.cgiData.volUnitsStr || "G";
-    proxyResult.cgiData.tankData.forEach(t => {
-      const cap      = t.capacity || 1, gross = t.grossVolume || 0;
-      const override = getTankOverride(proxyResult.url, t.tankNum);
-      const cap2     = (override && override.capacityCap) ? override.capacityCap : cap;
-      const pctCapped = Math.min(Math.round((gross / cap2) * 1000) / 10, 100);
-      const ullageCapped = Math.max(0, Math.round(cap2 * 0.9 - gross));
-      result.tanks.push({
-        id: t.tankNum, fuelType: normalizeFuelType(fuelMap[t.tankNum] || t.fuelType || "Tank " + t.tankNum),
-        vol: Math.round(t.productVolume || gross), pct: pctCapped,
-        ullage: (override && override.capacityCap) ? ullageCapped : Math.round(t.adjustedUllage || 0),
-        temp: t.averageTemp != null ? t.averageTemp.toFixed(1) : null,
-        fuelColor: t.fuelColor || barColor(pctCapped), status: t.statusIndStr || "Normal",
-        severity: t.statusIndSeverity || "Normal", volUnits, override,
-        grossHeight: t.grossHeight != null ? t.grossHeight.toFixed(2) : null,
-        probeLength: getProbeLength(proxyResult.url, t.tankNum),
-        capacityCap: (override && override.capacityCap) ? override.capacityCap : null,
-        capacity: cap,
-        lastDelivery: (deliveryMap[t.tankNum] && deliveryMap[t.tankNum].length > 0) ? deliveryMap[t.tankNum][0] : null,
-        deliveryHistory: deliveryMap[t.tankNum] || [],
-        waterHeight: t.waterHeight != null ? t.waterHeight : null,
-        waterVolume: t.waterVolume != null ? Math.round(t.waterVolume) : null,
-        _siteUrl: proxyResult.url, _siteIdx: i,
-      });
-    });
-    result.tanks.sort((a, b) => {
-      const aL = a.override && a.override.sortLast ? 1 : 0, bL = b.override && b.override.sortLast ? 1 : 0;
-      return aL !== bL ? aL - bL : a.id - b.id;
-    });
-    proxyResult.cgiData.tankData.forEach(t => {
-      if (!t.statusCondsList || !Array.isArray(t.statusCondsList)) return;
-      const override = getTankOverride(proxyResult.url, t.tankNum);
-      if (override && override.isWasteOil) return;
-      const tankObj = result.tanks.find(rt => rt.id === t.tankNum);
-      if (!tankObj) return;
-      t.statusCondsList.forEach(cond => {
-        const desc = cond.statusIndStr || "", sev = (cond.statusIndSeverity || "Normal").toLowerCase();
-        if (sev === "normal" || desc.toLowerCase() === "normal") return;
-        const already = result.alarms.some(a => String(a.tankNum) === String(t.tankNum) && a.description.toLowerCase() === desc.toLowerCase());
-        if (already) return;
-        result.alarms.push({ logNum: String(t.tankNum), tankNum: String(t.tankNum), label: tankObj.fuelType, tankLabel: tankObj.fuelType, description: desc, category: "Tank", severity: sev === "warning" ? "warning" : "alarm", timeActive: "" });
-      });
-    });
-  }
-  return result;
-}
-
-function updateSummaryBar() {
-  let online = 0, tanks = 0, alarms = 0, low = 0, vol = 0;
-  allSiteResults.forEach(r => {
-    if (!r || r.error) return; online++;
-    r.tanks.forEach(t => { tanks++; if (!t.override || !t.override.isWasteOil) { vol += t.vol; if (t.pct < 25) low++; } });
-    alarms += (r.alarms || []).length;
-    alarms += r.tanks.filter(t => t.override && t.override.isWasteOil && t.pct >= t.override.highAlertPct).length;
-  });
-  document.getElementById("s-online").textContent = online || "\u2014";
-  document.getElementById("s-online").style.color = (online > 0 && online < SITES.length) ? "#f44336" : "#fff";
-  document.getElementById("s-tanks").textContent  = tanks  || "\u2014";
-  document.getElementById("s-alarms").textContent = alarms;
-  document.getElementById("s-alarms").style.color = alarms > 0 ? "#f44336" : "#fff";
-  document.getElementById("s-low").textContent    = low;
-  document.getElementById("s-low").style.color    = low > 0 ? "#ff9800" : "#fff";
-  document.getElementById("s-total-vol").textContent = vol > 0 ? vol.toLocaleString() : "\u2014";
-}
-
-// Override fetchAll with progressive version
-async function fetchAll() {
-  clearInterval(refreshTimer); clearInterval(countTimer);
-  const btn = document.getElementById("refresh-btn");
-  btn.disabled = true; btn.textContent = "Loading\u2026";
-  allSiteResults = new Array(SITES.length).fill(null);
-  const grid = document.getElementById("site-grid");
-  grid.innerHTML = "";
-  SITES.forEach((s, i) => {
-    const card = document.createElement("div");
-    card.className = "site-card"; card.id = "card-" + i;
-    card.innerHTML = "<div class='site-hdr'><div><div class='site-name'>" + s.name + "</div><div class='site-addr'>" + s.addr + "</div></div><span class='badge b-loading pulse'>Loading\u2026</span></div><div class='placeholder'>Fetching data\u2026</div>";
-    grid.appendChild(card);
-  });
-  await Promise.allSettled(SITES.map((s, i) =>
-    fetchSiteFromProxy(i)
-      .then(pr => { const r = processSiteResult(pr, i); allSiteResults[i] = r; const c = document.getElementById("card-" + i); if (c) c.innerHTML = buildCardHTML(r); updateSummaryBar(); })
-      .catch(e  => { allSiteResults[i] = { name: s.name, addr: s.addr, url: s.url, tanks: [], alarms: [], error: e.message }; const c = document.getElementById("card-" + i); if (c) c.innerHTML = buildCardHTML(allSiteResults[i]); updateSummaryBar(); })
-  ));
-  const now = new Date();
-  document.getElementById("ts").textContent = now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
-  btn.disabled = false; btn.textContent = "\u27f3 Refresh All";
-  buildFilterPills(); applyProductFilter(); startAutoRefresh();
-}
-
-document.getElementById("refresh-btn").addEventListener("click", fetchAll);
-try { loadAllFlags(); } catch(e) {}
-fetchAll();
 </script>
 </body>
 </html>
