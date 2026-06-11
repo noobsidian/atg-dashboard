@@ -1219,7 +1219,7 @@ function estimateDailyConsumption(t) {
   return null;
 }
 
-function buildDeliveryTooltip(t) {
+function buildDeliveryText(t) {
   const d = t.lastDelivery;
   if (!d) return "";
   const amt   = Math.round(d.grossVolume);
@@ -1230,25 +1230,12 @@ function buildDeliveryTooltip(t) {
   let tip = "Last Delivery: " + d.dateOnly
     + "\n" + sign + amt.toLocaleString() + " G  (" + start.toLocaleString() + " to " + end.toLocaleString() + " G)"
     + "\nTemp Compensated: " + sign + tc.toLocaleString() + " G";
-  // Add water height if present
   if (t.waterHeight != null && t.waterHeight > 0) {
-    const wColor = t.waterHeight >= 1.0 ? " \u26a0" : "";
-    tip += "\nWater Height: " + t.waterHeight.toFixed(2) + "\"" + wColor;
+    tip += "\nWater: " + t.waterHeight.toFixed(2) + "\"";
     if (t.waterVolume) tip += "  (" + t.waterVolume + " G)";
+    if (t.waterHeight >= 1.0) tip += "  \u26a0";
   }
-
-  // Add consumption estimate if we have enough delivery history
-  const est = estimateDailyConsumption(t);
-  if (est) {
-    const threeDayEst = Math.round(est.dailyRate * 3);
-    const methodNote  = est.method === "since-last-delivery"
-      ? "since last delivery"
-      : est.periods + " period" + (est.periods !== 1 ? "s" : "");
-    tip += "\n\nEst. 3-day usage: ~" + threeDayEst.toLocaleString() + " G"
-      + "\n  (" + est.dailyRate.toLocaleString() + " G/day avg, " + methodNote + ")";
-  }
-
-  return 'data-tooltip="' + tip.replace(/"/g, "&quot;") + '"';
+  return tip;
 }
 
 function inchesStr(t) {
@@ -1270,9 +1257,10 @@ function urgentAlarmHTML(a, siteUrl) {
   let onOrderTag = "";
   if (isDelivery && siteUrl) {
     const tankNum = String(a.tankNum || a.logNum || "");
-    const flagDate = tankNum ? getOrderFlag(siteUrl, tankNum) : null;
-    if (flagDate) {
-      onOrderTag = "<span class='on-order-tag'>&#10003; ON ORDER</span>";
+    const orders  = tankNum ? getOrderOrders(siteUrl, tankNum) : [];
+    if (orders.length > 0) {
+      const galStr = orders.map(o => o.gallons ? o.gallons.toLocaleString() + " G" : null).filter(Boolean).join(" + ");
+      onOrderTag = "<span class='on-order-tag'>&#10003; ON ORDER" + (galStr ? " &nbsp;" + galStr : "") + "</span>";
     }
   }
 
@@ -1370,73 +1358,173 @@ function getOrderFlag(siteUrl, tankId) {
   return entry ? entry.flagDate : null;
 }
 
-function getOrderFlagBy(siteUrl, tankId) {
-  const entry = flagCache[flagCacheKey(siteUrl, tankId)];
-  return entry ? (entry.orderedBy || "User") : null;
+function normaliseEntry(entry) {
+  if (!entry) return { orders: [] };
+  if (Array.isArray(entry.orders)) return entry;
+  return { orders: [{ flagDate: entry.flagDate, orderedBy: entry.orderedBy || 'User', gallons: entry.gallons || null }] };
 }
 
-async function setOrderFlag(siteUrl, tankId) {
-  const today = new Date().toISOString().split("T")[0];
-  const key   = flagCacheKey(siteUrl, tankId);
-  // Update cache immediately so re-render shows correct state
-  flagCache[key] = { flagDate: today, orderedBy: "User" };
-  // Write to server in background
+function getOrderOrders(siteUrl, tankId) {
+  return normaliseEntry(flagCache[flagCacheKey(siteUrl, tankId)]).orders;
+}
+
+function getOrderFlag(siteUrl, tankId) {
+  const orders = getOrderOrders(siteUrl, tankId);
+  return orders.length > 0 ? orders[0].flagDate : null;
+}
+
+function getOrderFlagBy(siteUrl, tankId) {
+  const orders = getOrderOrders(siteUrl, tankId);
+  return orders.length > 0 ? (orders[0].orderedBy || 'User') : null;
+}
+
+function getOrderFlagGallons(siteUrl, tankId) {
+  const orders = getOrderOrders(siteUrl, tankId);
+  return orders.length > 0 ? orders[0].gallons : null;
+}
+
+async function setOrderFlag(siteUrl, tankId, gallons) {
+  const today    = new Date().toISOString().split("T")[0];
+  const key      = flagCacheKey(siteUrl, tankId);
+  const existing = normaliseEntry(flagCache[key]);
+  const newOrder = { flagDate: today, orderedBy: "User", gallons: gallons || null };
+  if (existing.orders.length >= 2) {
+    existing.orders[existing.orders.length - 1] = newOrder;
+  } else {
+    existing.orders.push(newOrder);
+  }
+  flagCache[key] = existing;
   fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ flagDate: today, orderedBy: "User" }),
+    body: JSON.stringify({ flagDate: today, orderedBy: "User", gallons: gallons || null }),
   }).catch(e => console.warn("Flag save failed:", e));
 }
 
 async function clearOrderFlag(siteUrl, tankId) {
-  const key = flagCacheKey(siteUrl, tankId);
-  // Update cache immediately so re-render shows correct state
-  delete flagCache[key];
-  // Write to server in background
+  const key      = flagCacheKey(siteUrl, tankId);
+  const existing = normaliseEntry(flagCache[key]);
+  existing.orders.shift();
+  if (existing.orders.length === 0) {
+    delete flagCache[key];
+  } else {
+    flagCache[key] = existing;
+  }
   fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" })
     .catch(e => console.warn("Flag clear failed:", e));
 }
 
-const MIN_DELIVERY_GALLONS = 200; // minimum delivery to auto-clear an order flag
-
-function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
-  const flagDate = getOrderFlag(siteUrl, tankId);
-  if (!flagDate || !lastDelivery) return flagDate;
-  try {
-    // Only auto-clear if delivery is a real delivery (200+ gallons)
-    // Ignores temperature compensation events and small meter corrections
-    const gallons = Math.abs(lastDelivery.grossVolume || 0);
-    if (gallons < MIN_DELIVERY_GALLONS) return flagDate;
-
-    // Parse delivery date as YYYY-MM-DD for reliable comparison
-    const delivStr = new Date(lastDelivery.dateOnly).toISOString().split("T")[0];
-    // Only auto-clear if delivery date is strictly AFTER flag date (not same day)
-    if (delivStr > flagDate) {
-      clearOrderFlag(siteUrl, tankId);
-      return null;
-    }
-  } catch(e) {}
-  return flagDate;
+async function clearAllOrderFlags(siteUrl, tankId) {
+  const key = flagCacheKey(siteUrl, tankId);
+  delete flagCache[key];
+  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
+  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
 }
 
-// Toggle flag on click
-document.addEventListener("click", function(e) {
-  const btn = e.target.closest(".order-flag-btn");
-  if (!btn) return;
-  const siteUrl  = decodeURIComponent(btn.dataset.site || "");
-  const tankId   = btn.dataset.tank;
-  const flagDate = getOrderFlag(siteUrl, tankId);
-  if (flagDate) {
-    clearOrderFlag(siteUrl, tankId);
-  } else {
-    setOrderFlag(siteUrl, tankId);
-  }
-  // Re-render immediately — cache already updated synchronously
+const MIN_DELIVERY_GALLONS = 200;
+
+function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
+  const orders = getOrderOrders(siteUrl, tankId);
+  if (orders.length === 0 || !lastDelivery) return orders;
+  try {
+    const gallons = Math.abs(lastDelivery.grossVolume || 0);
+    if (gallons < MIN_DELIVERY_GALLONS) return orders;
+    const delivStr = new Date(lastDelivery.dateOnly).toISOString().split("T")[0];
+    if (delivStr > orders[0].flagDate) {
+      clearOrderFlag(siteUrl, tankId);
+      return orders.slice(1);
+    }
+  } catch(e) {}
+  return orders;
+}
+
+// ── Gallons modal ──────────────────────────────────────────────────────────
+let _pendingFlagSite = null, _pendingFlagTank = null;
+
+function openGallonsModal(siteUrl, tankId, tankLabel, prefill) {
+  _pendingFlagSite = siteUrl;
+  _pendingFlagTank = tankId;
+  document.getElementById("gallons-modal-desc").textContent = decodeURIComponent(tankLabel);
+  document.getElementById("gallons-input").value = prefill ? prefill : "";
+  document.getElementById("gallons-modal").style.display = "flex";
+  setTimeout(() => { const inp = document.getElementById("gallons-input"); inp.focus(); if (prefill) inp.select(); }, 50);
+}
+
+function closeGallonsModal() {
+  document.getElementById("gallons-modal").style.display = "none";
+  _pendingFlagSite = null; _pendingFlagTank = null;
+}
+
+function confirmGallonsModal() {
+  const raw     = parseInt(document.getElementById("gallons-input").value, 10);
+  const gallons = (!isNaN(raw) && raw > 0) ? raw : null;
+  const site    = _pendingFlagSite;
+  const tank    = _pendingFlagTank;
+  closeGallonsModal();
+  setOrderFlag(site, tank, gallons);
   allSiteResults.forEach((result, i) => {
-    if (!result || result.url !== siteUrl) return;
+    if (!result || result.url !== site) return;
     const card = document.getElementById("card-" + i);
     if (card) card.innerHTML = buildCardHTML(result);
   });
+}
+
+// ── Long-press to clear all orders ────────────────────────────────────────
+const LONG_PRESS_MS = 600;
+let _lpTimer = null, _lpBtn = null, _lpFired = false;
+
+document.addEventListener("mousedown", function(e) {
+  const btn = e.target.closest(".order-flag-btn");
+  if (!btn || !btn.classList.contains("order-flag-active")) return;
+  _lpBtn = btn; _lpFired = false;
+  btn.style.transition = "background " + LONG_PRESS_MS + "ms";
+  btn.style.background = "rgba(244,67,54,0.3)";
+  _lpTimer = setTimeout(() => {
+    _lpFired = true;
+    const siteUrl = decodeURIComponent(btn.dataset.site || "");
+    const tankId  = btn.dataset.tank;
+    btn.style.background = ""; btn.style.transition = "";
+    clearAllOrderFlags(siteUrl, tankId).then(() => {
+      allSiteResults.forEach((result, i) => {
+        if (!result || result.url !== siteUrl) return;
+        const card = document.getElementById("card-" + i);
+        if (card) card.innerHTML = buildCardHTML(result);
+      });
+    });
+  }, LONG_PRESS_MS);
+});
+
+document.addEventListener("mouseup", function() {
+  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
+});
+
+document.addEventListener("mouseleave", function() {
+  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
+}, true);
+
+// Toggle flag on click
+document.addEventListener("click", function(e) {
+  if (_lpFired) { _lpFired = false; return; }
+  const btn = e.target.closest(".order-flag-btn");
+  if (!btn) return;
+  const siteUrl = decodeURIComponent(btn.dataset.site || "");
+  const tankId  = btn.dataset.tank;
+  const orders  = getOrderOrders(siteUrl, tankId);
+  const ullage  = parseInt(btn.dataset.ullage || "0", 10);
+  if (orders.length >= 2) {
+    clearOrderFlag(siteUrl, tankId);
+    allSiteResults.forEach((result, i) => {
+      if (!result || result.url !== siteUrl) return;
+      const card = document.getElementById("card-" + i);
+      if (card) card.innerHTML = buildCardHTML(result);
+    });
+  } else {
+    const tankLabel = btn.dataset.label || encodeURIComponent("Tank " + tankId);
+    const prefill   = orders.length === 1 ? ullage : null;
+    openGallonsModal(siteUrl, tankId, tankLabel, prefill);
+  }
 });
 
 function buildTankRow(t) {
@@ -1445,7 +1533,7 @@ function buildTankRow(t) {
     const col     = wasteOilBarColor(t.pct, ov.highAlertPct);
     const isHigh  = t.pct >= ov.highAlertPct;
     const pctSafe = Math.min(t.pct, 100);
-    return "<div class='tank-row waste-oil-row" + (isHigh ? " alarm-row" : "") + "' " + buildDeliveryTooltip(t) + ">"
+    return "<div class='tank-row waste-oil-row" + (isHigh ? " alarm-row" : "") + "' data-site-idx='' data-tank-id='" + t.id + "' data-delivery-text=''>"
       + "<div>"
       +   "<div class='t-name'>" + t.fuelType + " <span class='waste-tag'>WASTE</span></div>"
       +   "<div class='t-type'>Tank " + t.id + "</div>"
@@ -1481,12 +1569,20 @@ function buildTankRow(t) {
   const pctSafe  = Math.min(t.pct, 100);
   const capTag   = t.capacityCap ? "<span class='cap-tag'>CAP " + t.capacityCap.toLocaleString() + " G</span>" : "";
   const siteUrl  = t._siteUrl || "";
-  const flagDate = checkAndClearOrderFlag(siteUrl, t.id, t.lastDelivery);
-  const orderedBy  = getOrderFlagBy(siteUrl, t.id);
-  const flagTitle  = flagDate ? "On order since " + flagDate + " - click to clear" : "Mark as ordered";
-  const flagClass  = "order-flag-btn" + (flagDate ? " order-flag-active" : "");
-  const flagBtn    = "<button class='" + flagClass + "' data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
-  return "<div class='tank-row " + rc + "' " + buildDeliveryTooltip(t) + ">"
+  const orders   = checkAndClearOrderFlag(siteUrl, t.id, t.lastDelivery);
+  const hasOrder = orders.length > 0;
+  const galStrs  = orders.map(o => o.gallons ? o.gallons.toLocaleString() + " G" : null).filter(Boolean);
+  const galLabel = galStrs.join(" / ");
+  const titleParts = orders.map((o, idx) => "Order " + (idx+1) + ": " + o.flagDate + (o.gallons ? " (" + o.gallons.toLocaleString() + " G)" : ""));
+  const flagTitle  = hasOrder
+    ? titleParts.join(" | ") + (orders.length < 2 ? " \u2014 click to add 2nd order" : " \u2014 click to clear oldest | hold to clear all")
+    : "Mark as ordered";
+  const flagClass   = "order-flag-btn" + (hasOrder ? " order-flag-active" : "");
+  const flagLabel   = encodeURIComponent(t.fuelType + " \u00b7 Tank " + t.id);
+  const flagContent = hasOrder ? ("&#128666;" + (galLabel ? " " + galLabel : "")) : "&#128666;";
+  const flagBtn     = "<button class='" + flagClass + "' data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' data-label='" + flagLabel + "' data-ullage='" + (t.ullage || 0) + "' title='" + flagTitle.replace(/'/g, "") + "'>" + flagContent + "</button>";
+  const delivText   = buildDeliveryText(t).replace(/'/g, "&#39;");
+  return "<div class='tank-row " + rc + "' data-site-idx='" + (t._siteIdx !== undefined ? t._siteIdx : '') + "' data-tank-id='" + t.id + "' data-delivery-text='" + delivText + "'>"
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
     +   "<div class='t-type'>Tank " + t.id + "</div>"
