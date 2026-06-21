@@ -2103,67 +2103,57 @@ fetchAll();
 
 // ── Product filter ─────────────────────────────────────────────────────────
 
-let activeFilters = new Set(); // empty = All
+// ── Product filter — 3 groups: Diesel, Gas, Other ─────────────────────────
+const FILTER_GROUPS = {
+  Diesel: f => { const n = (f||"").toLowerCase(); return n.includes("diesel") || n.includes("b20") || n.includes("biodiesel"); },
+  Gas:    f => { const n = (f||"").toLowerCase(); return n.includes("unleaded") || n.includes("e10") || n.includes("e85") || n.includes("flex"); },
+  Other:  f => { const n = (f||"").toLowerCase(); return !FILTER_GROUPS.Diesel(f) && !FILTER_GROUPS.Gas(f) && !n.includes("waste"); },
+};
+
+let activeFilters = new Set(); // empty = All — stores group names
+
+function saveFilterState() {
+  try { localStorage.setItem('atg_activeFilters', JSON.stringify([...activeFilters])); } catch(e) {}
+}
+
+function loadFilterState() {
+  try {
+    const saved = localStorage.getItem('atg_activeFilters');
+    if (saved) activeFilters = new Set(JSON.parse(saved).filter(g => FILTER_GROUPS[g]));
+  } catch(e) {}
+}
 
 function buildFilterPills() {
   const container = document.getElementById("product-filters");
   if (!container) return;
   const checkbox = document.getElementById("filter-enabled");
-  // Only show pills if checkbox is checked
-  if (checkbox && !checkbox.checked) {
-    container.style.display = "none";
-    return;
-  }
+  if (checkbox && !checkbox.checked) { container.style.display = "none"; return; }
   if (checkbox && checkbox.checked) container.style.display = "flex";
 
-  // Collect all unique product types from loaded results
-  const products = new Set();
+  // Only show groups that have matching tanks
+  const present = new Set();
   allSiteResults.forEach(result => {
     if (!result || result.error) return;
     (result.tanks || []).forEach(t => {
-      if (t.override && t.override.isWasteOil) return; // exclude waste oil from filter
-      if (t.fuelType) products.add(t.fuelType);
+      if (t.override && t.override.isWasteOil) return;
+      Object.entries(FILTER_GROUPS).forEach(([name, fn]) => { if (fn(t.fuelType)) present.add(name); });
     });
   });
 
-  // Custom sort order — diesel group first, then ethanol group, then everything else alphabetically
-  const ORDER = [
-    "B20 Biodiesel",
-    "On-road Diesel",
-    "Off-road Diesel",
-    "E10 Unleaded",
-    "E85 Flex Fuel",
-  ];
-  const sorted = Array.from(products).sort((a, b) => {
-    const ai = ORDER.indexOf(a);
-    const bi = ORDER.indexOf(b);
-    if (ai !== -1 && bi !== -1) return ai - bi;  // both in order list
-    if (ai !== -1) return -1;                      // a is ordered, b is not
-    if (bi !== -1) return 1;                       // b is ordered, a is not
-    return a.localeCompare(b);                     // both unordered — alphabetical
-  });
-
-  // Build pills — preserve active state across rebuilds
-  let html = "<button class='filter-pill pill-all" + (activeFilters.size === 0 ? " active" : "") + "' data-product='__all__'>All</button>";
-  sorted.forEach(p => {
-    const isActive = activeFilters.has(p);
-    html += "<button class='filter-pill" + (isActive ? " active" : "") + "' data-product='" + p.replace(/'/g, "&#39;") + "'>" + p + "</button>";
+  let html = "<button class='filter-pill pill-all" + (activeFilters.size === 0 ? " active" : "") + "' data-group='__all__'>All</button>";
+  ["Diesel", "Gas", "Other"].forEach(name => {
+    if (!present.has(name)) return;
+    html += "<button class='filter-pill" + (activeFilters.has(name) ? " active" : "") + "' data-group='" + name + "'>" + name + "</button>";
   });
   container.innerHTML = html;
 
-  // Wire up clicks
   container.querySelectorAll(".filter-pill").forEach(btn => {
     btn.addEventListener("click", () => {
-      const product = btn.getAttribute("data-product");
-      if (product === "__all__") {
-        activeFilters.clear();
-      } else {
-        if (activeFilters.has(product)) {
-          activeFilters.delete(product);
-        } else {
-          activeFilters.add(product);
-        }
-      }
+      const group = btn.getAttribute("data-group");
+      if (group === "__all__") { activeFilters.clear(); }
+      else if (activeFilters.has(group)) { activeFilters.delete(group); }
+      else { activeFilters.add(group); }
+      saveFilterState();
       buildFilterPills();
       applyProductFilter();
     });
@@ -2171,11 +2161,10 @@ function buildFilterPills() {
 }
 
 function applyProductFilter() {
-  const grid  = document.getElementById("site-grid");
+  const grid = document.getElementById("site-grid");
   if (!grid) return;
   const cards = grid.querySelectorAll(".site-card");
 
-  // All selected or nothing selected = show everything
   if (activeFilters.size === 0) {
     cards.forEach(card => {
       card.style.display = "";
@@ -2187,25 +2176,16 @@ function applyProductFilter() {
   cards.forEach((card, i) => {
     const result = allSiteResults[i];
     if (!result || result.error) return;
-
     let cardHasMatch = false;
     const rows = card.querySelectorAll(".tank-row");
-
     rows.forEach((row, ri) => {
       const tank = (result.tanks || [])[ri];
       if (!tank) { row.style.display = "none"; return; }
-
-      // Waste oil always visible when filters active
-      if (tank.override && tank.override.isWasteOil) {
-        row.style.display = "";
-        return;
-      }
-
-      const match = activeFilters.has(tank.fuelType);
+      if (tank.override && tank.override.isWasteOil) { row.style.display = ""; return; }
+      const match = [...activeFilters].some(g => FILTER_GROUPS[g] && FILTER_GROUPS[g](tank.fuelType));
       row.style.display = match ? "" : "none";
       if (match) cardHasMatch = true;
     });
-
     card.style.display = cardHasMatch ? "" : "none";
   });
 }
@@ -2217,17 +2197,17 @@ function applyProductFilter() {
   const pillsWrap = document.getElementById("product-filters");
   if (!checkbox || !pillsWrap) return;
 
+  loadFilterState();
+
   checkbox.addEventListener("change", function() {
     if (this.checked) {
       pillsWrap.style.display = "flex";
-      // Build pills now in case data already loaded
       buildFilterPills();
     } else {
       activeFilters.clear();
       pillsWrap.style.display = "none";
       applyProductFilter();
     }
-    // Save checkbox state
     try { localStorage.setItem('atg_filterEnabled', this.checked ? '1' : ''); } catch(e) {}
   });
 
