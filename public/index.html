@@ -1200,6 +1200,8 @@ async function fetchSite(site) {
         deliveryHistory: deliveryMap[t.tankNum] || [],
         waterHeight:     t.waterHeight != null ? t.waterHeight : null,
         waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
+        _siteUrl:        site.url,
+        _siteIdx:        SITES.findIndex(s => s.url === site.url),
       });
     });
     result.tanks.sort((a, b) => {
@@ -1807,6 +1809,7 @@ async function fetchAll() {
           waterHeight:     t.waterHeight != null ? t.waterHeight : null,
           waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
           _siteUrl:    proxyResult.url,
+          _siteIdx:    i,
         });
       });
 
