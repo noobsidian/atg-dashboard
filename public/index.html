@@ -1356,11 +1356,15 @@ function buildAlarmSection(alarms, siteUrl) {
       + "</button>"
       + "<div class='other-alarms-list' id='" + id + "' style='display:none'>";
     other.forEach(a => { html += otherAlarmHTML(a); });
+    html += "<div class='alarm-footer'>"
+      + "<a class='alarm-view-link' href='" + siteUrl + "/reports.htm' target='_blank'>View full alarm report &#8599;</a>"
+      + "</div>";
     html += "</div></div>";
+  } else {
+    html += "<div class='alarm-footer'>"
+      + "<a class='alarm-view-link' href='" + siteUrl + "/reports.htm' target='_blank'>View full alarm report &#8599;</a>"
+      + "</div>";
   }
-  html += "<div class='alarm-footer'>"
-    + "<a class='alarm-view-link' href='" + siteUrl + "/reports.htm' target='_blank'>View full alarm report &#8599;</a>"
-    + "</div>";
   html += "</div>";
   return html;
 }
