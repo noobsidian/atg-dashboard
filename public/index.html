@@ -1332,7 +1332,7 @@ function otherAlarmHTML(a) {
 
 function buildAlarmSection(alarms, siteUrl) {
   if (alarms.length === 0) {
-    return "<div class='alarm-clear'><span class='alarm-ok-dot'></span>No active alarms</div>";
+    return "";
   }
   const urgent  = alarms.filter(a => isUrgent(a));
   const notable = alarms.filter(a => !isUrgent(a) && isNotable(a));
