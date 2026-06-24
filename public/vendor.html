@@ -573,11 +573,12 @@ async function fetchAll() {
     now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
   btn.disabled = false;
   btn.textContent = "\u27f3 Refresh";
+  // Load flags after tanks are rendered so re-render has data to work with
+  loadAllFlags().catch(() => {});
   startAutoRefresh();
 }
 
-document.getElementById("refresh-btn").addEventListener("click", () => { loadAllFlags(); fetchAll(); });
-try { loadAllFlags(); } catch(e) {}
+document.getElementById("refresh-btn").addEventListener("click", fetchAll);
 fetchAll();
 </script>
 </body>
