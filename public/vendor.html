@@ -208,7 +208,17 @@ async function loadAllFlags() {
     const resp = await fetch(FLAGS_URL + "?_=" + Date.now(), { cache: "no-store" });
     if (resp.ok) {
       const data = await resp.json();
-      if (data && typeof data === "object" && !data.error) flagCache = data;
+      if (data && typeof data === "object" && !data.error) {
+        flagCache = data;
+        // Re-render all cards now that flags are loaded
+        if (allSiteResults && allSiteResults.length) {
+          allSiteResults.forEach((result, i) => {
+            if (!result) return;
+            const card = document.getElementById("card-" + i);
+            if (card) card.innerHTML = buildCardHTML(result);
+          });
+        }
+      }
     }
   } catch(e) {}
 }
@@ -356,7 +366,7 @@ function buildTankRow(t) {
   const hasOrder = orders.length > 0;
   const galStrs  = orders.map(o => o.gallons ? o.gallons.toLocaleString() + " G" : null).filter(Boolean);
   const orderTag = hasOrder
-    ? "<span class='on-order-badge'>&#10003; ON ORDER" + (galStrs.length ? " " + galStrs.join(" + ") : "") + "</span>"
+    ? "<span class='on-order-badge'>&#10003; ON ORDER" + (galStrs.length ? " &nbsp;" + galStrs.join(" + ") : "") + "</span>"
     : "";
   return "<div class='tank-row" + (isLow ? " warn-row" : "") + "'>"
     + "<div>"
@@ -566,7 +576,7 @@ async function fetchAll() {
   startAutoRefresh();
 }
 
-document.getElementById("refresh-btn").addEventListener("click", fetchAll);
+document.getElementById("refresh-btn").addEventListener("click", () => { loadAllFlags(); fetchAll(); });
 try { loadAllFlags(); } catch(e) {}
 fetchAll();
 </script>
