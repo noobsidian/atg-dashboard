@@ -372,9 +372,8 @@ function buildTankRow(t) {
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType
     +   (isLow ? "<span class='low-badge'>LOW</span>" : "")
-    +   orderTag
     +   "</div>"
-    +   "<div class='t-type'>Tank " + t.id + "</div>"
+    +   "<div class='t-type'>Tank " + t.id + (orderTag ? " &nbsp;" + orderTag : "") + "</div>"
     + "</div>"
     + "<div>"
     +   "<div class='bar-wrap'><div class='bar-fill' style='width:" + pctSafe + "%;background:" + col + "'></div></div>"
