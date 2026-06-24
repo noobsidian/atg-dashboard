@@ -99,6 +99,13 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
   padding: 1px 5px; margin-left: 5px;
   vertical-align: middle; letter-spacing: 0.5px;
 }
+.on-order-badge {
+  display: inline-block; font-size: 9px; font-weight: bold;
+  background: rgba(71,193,60,0.15); color: #47C13C;
+  border: 1px solid #47C13C; border-radius: 3px;
+  padding: 1px 5px; margin-left: 5px;
+  vertical-align: middle; letter-spacing: 0.5px;
+}
 .drain-badge {
   display: inline-block; font-size: 9px; font-weight: bold;
   background: #b71c1c; color: #ef9a9a;
@@ -191,6 +198,40 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 
 // Vendor proxy — ?vendor=1 strips IPs and alarm details server-side
 const PROXY_URL = "/api/tanks?vendor=1";
+
+// ── Order flags (read-only) ────────────────────────────────────────────────
+const FLAGS_URL = "/api/flags";
+let flagCache = {};
+
+async function loadAllFlags() {
+  try {
+    const resp = await fetch(FLAGS_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && typeof data === "object" && !data.error) flagCache = data;
+    }
+  } catch(e) {}
+}
+
+function flagCacheKey(siteUrl, tankId) { return siteUrl + "|" + String(tankId); }
+
+const SITE_NAME_TO_URL = {
+  "Central Operations FMO":        "http://63.46.75.214:10001",
+  "Northeast Remote Ops FMO":      "http://166.146.80.90:10001",
+  "Heavy Equipment Shop FMO":      "http://63.46.75.226:10001",
+  "Public Utilities Field Ops RW": "http://63.46.75.230:10001",
+  "Wilders Grove SWS":             "http://63.46.75.218:10001",
+  "Marsh Creek PRCR":              "http://63.46.75.228:10001",
+  "Neuse River NRRF RW":           "http://63.46.75.227:10001",
+};
+
+function getOrderOrders(siteName, tankId) {
+  const url   = SITE_NAME_TO_URL[siteName] || siteName;
+  const entry = flagCache[flagCacheKey(url, tankId)];
+  if (!entry) return [];
+  if (Array.isArray(entry.orders)) return entry.orders;
+  return entry.flagDate ? [{ flagDate: entry.flagDate, gallons: entry.gallons || null }] : [];
+}
 const REFRESH_SECONDS = 300;
 let refreshTimer = null;
 let countTimer   = null;
@@ -311,10 +352,17 @@ function buildTankRow(t) {
   const col     = t.fuelColor || barColor(t.pct);
   const isLow   = t.pct < 25;
   const pctSafe = Math.min(t.pct, 100);
+  const orders  = getOrderOrders(t._siteName || "", t.id);
+  const hasOrder = orders.length > 0;
+  const galStrs  = orders.map(o => o.gallons ? o.gallons.toLocaleString() + " G" : null).filter(Boolean);
+  const orderTag = hasOrder
+    ? "<span class='on-order-badge'>&#10003; ON ORDER" + (galStrs.length ? " " + galStrs.join(" + ") : "") + "</span>"
+    : "";
   return "<div class='tank-row" + (isLow ? " warn-row" : "") + "'>"
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType
     +   (isLow ? "<span class='low-badge'>LOW</span>" : "")
+    +   orderTag
     +   "</div>"
     +   "<div class='t-type'>Tank " + t.id + "</div>"
     + "</div>"
@@ -470,6 +518,7 @@ async function fetchAll() {
           probeLength: getProbeLength(siteName, t.tankNum),
           override:    override,
           volUnits:    volUnits,
+          _siteName:   siteName,
         });
       });
 
@@ -518,6 +567,7 @@ async function fetchAll() {
 }
 
 document.getElementById("refresh-btn").addEventListener("click", fetchAll);
+try { loadAllFlags(); } catch(e) {}
 fetchAll();
 </script>
 </body>
