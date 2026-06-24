@@ -573,9 +573,9 @@ async function fetchAll() {
     now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
   btn.disabled = false;
   btn.textContent = "\u27f3 Refresh";
-  // Load flags after tanks are rendered so re-render has data to work with
-  loadAllFlags().catch(() => {});
   startAutoRefresh();
+  // Small delay ensures DOM is fully settled before flag re-render
+  setTimeout(() => loadAllFlags().catch(() => {}), 300);
 }
 
 document.getElementById("refresh-btn").addEventListener("click", fetchAll);
