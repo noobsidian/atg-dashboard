@@ -88,6 +88,36 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 .b-loading { background: #0d47a1; color: #90caf9; }
 .b-error   { background: #b71c1c; color: #ef9a9a; }
 .b-alarm   { background: #7f1d1d; color: #fca5a5; }
+.b-backup  { background: #2a2a00; color: #ffe082; }
+.backup-badge {
+  display: inline-block; font-size: 10px; font-weight: bold;
+  background: #2a2a00; color: #ffe082;
+  border: 1px solid #ffe082; border-radius: 4px;
+  padding: 2px 7px; margin-left: 8px; vertical-align: middle;
+}
+.backup-input-wrap {
+  padding: 10px 14px; background: #0d1a2e; border-top: 1px solid #324a5f;
+}
+.backup-input-wrap label { font-size: 11px; color: #b0b0b0; display: block; margin-bottom: 6px; }
+.backup-input-row { display: flex; gap: 6px; align-items: center; }
+.backup-ip-input {
+  flex: 1; padding: 5px 8px; background: #0f3460;
+  border: 1px solid #324a5f; border-radius: 6px;
+  color: #fff; font-size: 12px; font-family: monospace;
+}
+.backup-ip-input:focus { outline: none; border-color: #ffe082; }
+.backup-ip-btn {
+  padding: 5px 12px; background: #2a2a00; color: #ffe082;
+  border: 1px solid #ffe082; border-radius: 6px;
+  font-size: 12px; cursor: pointer;
+}
+.backup-ip-btn:hover { background: #3a3a00; }
+.backup-clear-btn {
+  padding: 5px 10px; background: none; color: #7a9bbf;
+  border: 1px solid #324a5f; border-radius: 6px;
+  font-size: 11px; cursor: pointer;
+}
+.backup-clear-btn:hover { color: #f44336; border-color: #f44336; }
 .b-warn    { background: #7e3d00; color: #ffcc80; }
 
 .tank-list { padding: 6px 10px; }
@@ -619,6 +649,11 @@ body.light .other-alarm-meta { color: #4a6a8a; }
   color: #ff9800 !important;
   background: rgba(255,152,0,0.1) !important;
 }
+.order-flag-active::after {
+  content: ' ON ORDER';
+  font-size: 9px; font-weight: bold;
+  letter-spacing: 0.5px;
+}
 body.light .order-flag-btn { color: #4a6a8a; border-color: #b0c8e0; }
 body.light .order-flag-btn:hover { border-color: #e65100; color: #e65100; }
 body.light .order-flag-active { border-color: #e65100 !important; color: #e65100 !important; background: rgba(230,81,0,0.08) !important; }
@@ -706,29 +741,6 @@ body.light .copy-btn-contract:hover { background: #e0f7fa !important; }
 body.light .water-warn { color: #0a5a9c; }
 body.light .water-warn-high { color: #c0392b !important; }
 .water-row { margin-top: 2px; padding-left: 2px; }
-
-/* ── Floating tooltip ────────────────────────────────────────────── */
-#tank-tooltip {
-  position: fixed; z-index: 9000;
-  background: #0a1628; color: #e0e0e0;
-  border: 1px solid #324a5f; border-radius: 8px;
-  padding: 10px 14px; font-size: 11px; line-height: 1.7;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  pointer-events: none; min-width: 260px; max-width: 380px;
-  display: none; white-space: normal; word-break: break-word;
-}
-body.light #tank-tooltip { background: #fff; color: #1a1a2e; border-color: #b0c8e0; }
-.tt-section-hdr {
-  font-size: 10px; font-weight: bold; text-transform: uppercase;
-  letter-spacing: 0.5px; color: #03a9f4;
-  margin-top: 6px; padding-top: 6px; border-top: 1px solid #253a4f;
-}
-body.light .tt-section-hdr { color: #0a5a9c; border-color: #d0e4f4; }
-.tt-day-row { display: flex; justify-content: space-between; gap: 24px; }
-.tt-day { color: #b0b0b0; }
-.tt-gal { color: #e0e0e0; font-weight: bold; }
-body.light .tt-gal { color: #1a1a2e; }
-.tt-loading { color: #7a9bbf; font-style: italic; }
 </style>
 </head>
 <body>
@@ -861,11 +873,29 @@ body.light .tt-gal { color: #1a1a2e; }
 // ── Auth token — read from URL, passed to proxy on every request ───────────
 const DASH_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
 
-// ── Render proxy fetch ─────────────────────────────────────────────────────
+// ── Backup IP management ───────────────────────────────────────────────────
+function getBackupIp(siteIdx) {
+  try { return localStorage.getItem('atg_backup_' + siteIdx) || null; } catch(e) { return null; }
+}
+function setBackupIp(siteIdx, ip) {
+  try { localStorage.setItem('atg_backup_' + siteIdx, ip); } catch(e) {}
+}
+function clearBackupIp(siteIdx) {
+  try { localStorage.removeItem('atg_backup_' + siteIdx); } catch(e) {}
+}
+function buildBackupParams() {
+  const parts = [];
+  SITES.forEach((s, i) => {
+    const ip = getBackupIp(i);
+    if (ip) parts.push('backup_' + i + '=' + encodeURIComponent(ip));
+  });
+  return parts.length ? '&' + parts.join('&') : '';
+}
+
 const PROXY_URL = "/api/tanks";
 
 async function fetchAllFromProxy() {
-  const url  = PROXY_URL + (DASH_TOKEN ? '?token=' + encodeURIComponent(DASH_TOKEN) : '');
+  const url  = PROXY_URL + (DASH_TOKEN ? '?token=' + encodeURIComponent(DASH_TOKEN) : '?') + buildBackupParams();
   const ctrl = new AbortController();
   const tid  = setTimeout(() => ctrl.abort(), 25000);
   try {
@@ -970,7 +1000,7 @@ function getTankOverride(siteUrl, tankId) {
 }
 
 const URGENT_KEYWORDS  = ["delivery needed", "delivery need"];
-const NOTABLE_KEYWORDS = ["overfill", "high product"];
+const NOTABLE_KEYWORDS = ["water alarm", "overfill", "high product"];
 
 // Normalize product names for consistent display
 const PRODUCT_NAME_MAP = {
@@ -1200,8 +1230,6 @@ async function fetchSite(site) {
         deliveryHistory: deliveryMap[t.tankNum] || [],
         waterHeight:     t.waterHeight != null ? t.waterHeight : null,
         waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
-        _siteUrl:        site.url,
-        _siteIdx:        SITES.findIndex(s => s.url === site.url),
       });
     });
     result.tanks.sort((a, b) => {
@@ -1262,7 +1290,7 @@ function estimateDailyConsumption(t) {
   return null;
 }
 
-function buildDeliveryText(t) {
+function buildDeliveryTooltip(t) {
   const d = t.lastDelivery;
   if (!d) return "";
   const amt   = Math.round(d.grossVolume);
@@ -1273,12 +1301,25 @@ function buildDeliveryText(t) {
   let tip = "Last Delivery: " + d.dateOnly
     + "\n" + sign + amt.toLocaleString() + " G  (" + start.toLocaleString() + " to " + end.toLocaleString() + " G)"
     + "\nTemp Compensated: " + sign + tc.toLocaleString() + " G";
+  // Add water height if present
   if (t.waterHeight != null && t.waterHeight > 0) {
-    tip += "\nWater: " + t.waterHeight.toFixed(2) + "\"";
+    const wColor = t.waterHeight >= 1.0 ? " \u26a0" : "";
+    tip += "\nWater Height: " + t.waterHeight.toFixed(2) + "\"" + wColor;
     if (t.waterVolume) tip += "  (" + t.waterVolume + " G)";
-    if (t.waterHeight >= 1.0) tip += "  \u26a0";
   }
-  return tip;
+
+  // Add consumption estimate if we have enough delivery history
+  const est = estimateDailyConsumption(t);
+  if (est) {
+    const threeDayEst = Math.round(est.dailyRate * 3);
+    const methodNote  = est.method === "since-last-delivery"
+      ? "since last delivery"
+      : est.periods + " period" + (est.periods !== 1 ? "s" : "");
+    tip += "\n\nEst. 3-day usage: ~" + threeDayEst.toLocaleString() + " G"
+      + "\n  (" + est.dailyRate.toLocaleString() + " G/day avg, " + methodNote + ")";
+  }
+
+  return 'data-tooltip="' + tip.replace(/"/g, "&quot;") + '"';
 }
 
 function inchesStr(t) {
@@ -1332,7 +1373,7 @@ function otherAlarmHTML(a) {
 
 function buildAlarmSection(alarms, siteUrl) {
   if (alarms.length === 0) {
-    return "";
+    return "<div class='alarm-clear'><span class='alarm-ok-dot'></span>No active alarms</div>";
   }
   const urgent  = alarms.filter(a => isUrgent(a));
   const notable = alarms.filter(a => !isUrgent(a) && isNotable(a));
@@ -1356,15 +1397,11 @@ function buildAlarmSection(alarms, siteUrl) {
       + "</button>"
       + "<div class='other-alarms-list' id='" + id + "' style='display:none'>";
     other.forEach(a => { html += otherAlarmHTML(a); });
-    html += "<div class='alarm-footer'>"
-      + "<a class='alarm-view-link' href='" + siteUrl + "/reports.htm' target='_blank'>View full alarm report &#8599;</a>"
-      + "</div>";
     html += "</div></div>";
-  } else {
-    html += "<div class='alarm-footer'>"
-      + "<a class='alarm-view-link' href='" + siteUrl + "/reports.htm' target='_blank'>View full alarm report &#8599;</a>"
-      + "</div>";
   }
+  html += "<div class='alarm-footer'>"
+    + "<a class='alarm-view-link' href='" + siteUrl + "/reports.htm' target='_blank'>View full alarm report &#8599;</a>"
+    + "</div>";
   html += "</div>";
   return html;
 }
@@ -1399,165 +1436,78 @@ function flagCacheKey(siteUrl, tankId) {
   return siteUrl + "|" + String(tankId);
 }
 
-function normaliseEntry(entry) {
-  if (!entry) return { orders: [] };
-  if (Array.isArray(entry.orders)) return entry;
-  return { orders: [{ flagDate: entry.flagDate, orderedBy: entry.orderedBy || 'User', gallons: entry.gallons || null }] };
-}
-
-function getOrderOrders(siteUrl, tankId) {
-  return normaliseEntry(flagCache[flagCacheKey(siteUrl, tankId)]).orders;
-}
-
 function getOrderFlag(siteUrl, tankId) {
-  const orders = getOrderOrders(siteUrl, tankId);
-  return orders.length > 0 ? orders[0].flagDate : null;
+  const entry = flagCache[flagCacheKey(siteUrl, tankId)];
+  return entry ? entry.flagDate : null;
 }
 
 function getOrderFlagBy(siteUrl, tankId) {
-  const orders = getOrderOrders(siteUrl, tankId);
-  return orders.length > 0 ? (orders[0].orderedBy || 'User') : null;
+  const entry = flagCache[flagCacheKey(siteUrl, tankId)];
+  return entry ? (entry.orderedBy || "User") : null;
 }
 
-async function setOrderFlag(siteUrl, tankId, gallons) {
-  const today    = new Date().toISOString().split("T")[0];
-  const key      = flagCacheKey(siteUrl, tankId);
-  const existing = normaliseEntry(flagCache[key]);
-  const newOrder = { flagDate: today, orderedBy: "User", gallons: gallons || null };
-  if (existing.orders.length >= 2) {
-    existing.orders[existing.orders.length - 1] = newOrder;
-  } else {
-    existing.orders.push(newOrder);
-  }
-  flagCache[key] = existing;
+async function setOrderFlag(siteUrl, tankId) {
+  const today = new Date().toISOString().split("T")[0];
+  const key   = flagCacheKey(siteUrl, tankId);
+  // Update cache immediately so re-render shows correct state
+  flagCache[key] = { flagDate: today, orderedBy: "User" };
+  // Write to server in background
   fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ flagDate: today, orderedBy: "User", gallons: gallons || null }),
+    body: JSON.stringify({ flagDate: today, orderedBy: "User" }),
   }).catch(e => console.warn("Flag save failed:", e));
 }
 
 async function clearOrderFlag(siteUrl, tankId) {
-  const key      = flagCacheKey(siteUrl, tankId);
-  const existing = normaliseEntry(flagCache[key]);
-  existing.orders.shift();
-  if (existing.orders.length === 0) delete flagCache[key];
-  else flagCache[key] = existing;
+  const key = flagCacheKey(siteUrl, tankId);
+  // Update cache immediately so re-render shows correct state
+  delete flagCache[key];
+  // Write to server in background
   fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" })
     .catch(e => console.warn("Flag clear failed:", e));
 }
 
-async function clearAllOrderFlags(siteUrl, tankId) {
-  const key = flagCacheKey(siteUrl, tankId);
-  delete flagCache[key];
-  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
-  await fetch(FLAGS_URL + "?key=" + encodeURIComponent(key), { method: "DELETE" }).catch(() => {});
-}
-
-const MIN_DELIVERY_GALLONS = 200;
+const MIN_DELIVERY_GALLONS = 200; // minimum delivery to auto-clear an order flag
 
 function checkAndClearOrderFlag(siteUrl, tankId, lastDelivery) {
-  const orders = getOrderOrders(siteUrl, tankId);
-  if (orders.length === 0 || !lastDelivery) return orders;
+  const flagDate = getOrderFlag(siteUrl, tankId);
+  if (!flagDate || !lastDelivery) return flagDate;
   try {
+    // Only auto-clear if delivery is a real delivery (200+ gallons)
+    // Ignores temperature compensation events and small meter corrections
     const gallons = Math.abs(lastDelivery.grossVolume || 0);
-    if (gallons < MIN_DELIVERY_GALLONS) return orders;
+    if (gallons < MIN_DELIVERY_GALLONS) return flagDate;
+
+    // Parse delivery date as YYYY-MM-DD for reliable comparison
     const delivStr = new Date(lastDelivery.dateOnly).toISOString().split("T")[0];
-    if (delivStr > orders[0].flagDate) {
+    // Only auto-clear if delivery date is strictly AFTER flag date (not same day)
+    if (delivStr > flagDate) {
       clearOrderFlag(siteUrl, tankId);
-      return orders.slice(1);
+      return null;
     }
   } catch(e) {}
-  return orders;
+  return flagDate;
 }
-
-// ── Gallons modal ──────────────────────────────────────────────────────────
-let _pendingFlagSite = null, _pendingFlagTank = null;
-
-function openGallonsModal(siteUrl, tankId, tankLabel, prefill) {
-  _pendingFlagSite = siteUrl;
-  _pendingFlagTank = tankId;
-  document.getElementById("gallons-modal-desc").textContent = decodeURIComponent(tankLabel);
-  document.getElementById("gallons-input").value = prefill ? prefill : "";
-  document.getElementById("gallons-modal").style.display = "flex";
-  setTimeout(() => { const inp = document.getElementById("gallons-input"); inp.focus(); if (prefill) inp.select(); }, 50);
-}
-
-function closeGallonsModal() {
-  document.getElementById("gallons-modal").style.display = "none";
-  _pendingFlagSite = null; _pendingFlagTank = null;
-}
-
-function confirmGallonsModal() {
-  const raw     = parseInt(document.getElementById("gallons-input").value, 10);
-  const gallons = (!isNaN(raw) && raw > 0) ? raw : null;
-  const site    = _pendingFlagSite;
-  const tank    = _pendingFlagTank;
-  closeGallonsModal();
-  setOrderFlag(site, tank, gallons);
-  allSiteResults.forEach((result, i) => {
-    if (!result || result.url !== site) return;
-    const card = document.getElementById("card-" + i);
-    if (card) card.innerHTML = buildCardHTML(result);
-  });
-}
-
-// ── Long-press to clear all orders ────────────────────────────────────────
-const LONG_PRESS_MS = 600;
-let _lpTimer = null, _lpBtn = null, _lpFired = false;
-
-document.addEventListener("mousedown", function(e) {
-  const btn = e.target.closest(".order-flag-btn");
-  if (!btn || !btn.classList.contains("order-flag-active")) return;
-  _lpBtn = btn; _lpFired = false;
-  btn.style.transition = "background " + LONG_PRESS_MS + "ms";
-  btn.style.background = "rgba(244,67,54,0.3)";
-  _lpTimer = setTimeout(() => {
-    _lpFired = true;
-    const siteUrl = decodeURIComponent(btn.dataset.site || "");
-    const tankId  = btn.dataset.tank;
-    btn.style.background = ""; btn.style.transition = "";
-    clearAllOrderFlags(siteUrl, tankId).then(() => {
-      allSiteResults.forEach((result, i) => {
-        if (!result || result.url !== siteUrl) return;
-        const card = document.getElementById("card-" + i);
-        if (card) card.innerHTML = buildCardHTML(result);
-      });
-    });
-  }, LONG_PRESS_MS);
-});
-
-document.addEventListener("mouseup", function() {
-  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
-  if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
-});
-
-document.addEventListener("mouseleave", function() {
-  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
-  if (_lpBtn) { _lpBtn.style.background = ""; _lpBtn.style.transition = ""; _lpBtn = null; }
-}, true);
 
 // Toggle flag on click
 document.addEventListener("click", function(e) {
-  if (_lpFired) { _lpFired = false; return; }
   const btn = e.target.closest(".order-flag-btn");
   if (!btn) return;
-  const siteUrl = decodeURIComponent(btn.dataset.site || "");
-  const tankId  = btn.dataset.tank;
-  const orders  = getOrderOrders(siteUrl, tankId);
-  const ullage  = parseInt(btn.dataset.ullage || "0", 10);
-  if (orders.length >= 2) {
+  const siteUrl  = decodeURIComponent(btn.dataset.site || "");
+  const tankId   = btn.dataset.tank;
+  const flagDate = getOrderFlag(siteUrl, tankId);
+  if (flagDate) {
     clearOrderFlag(siteUrl, tankId);
-    allSiteResults.forEach((result, i) => {
-      if (!result || result.url !== siteUrl) return;
-      const card = document.getElementById("card-" + i);
-      if (card) card.innerHTML = buildCardHTML(result);
-    });
   } else {
-    const tankLabel = btn.dataset.label || encodeURIComponent("Tank " + tankId);
-    const prefill   = orders.length === 1 ? ullage : null;
-    openGallonsModal(siteUrl, tankId, tankLabel, prefill);
+    setOrderFlag(siteUrl, tankId);
   }
+  // Re-render immediately — cache already updated synchronously
+  allSiteResults.forEach((result, i) => {
+    if (!result || result.url !== siteUrl) return;
+    const card = document.getElementById("card-" + i);
+    if (card) card.innerHTML = buildCardHTML(result);
+  });
 });
 
 function buildTankRow(t) {
@@ -1566,7 +1516,7 @@ function buildTankRow(t) {
     const col     = wasteOilBarColor(t.pct, ov.highAlertPct);
     const isHigh  = t.pct >= ov.highAlertPct;
     const pctSafe = Math.min(t.pct, 100);
-    return "<div class='tank-row waste-oil-row" + (isHigh ? " alarm-row" : "") + "' data-site-idx='' data-tank-id='" + t.id + "' data-delivery-text=''>"
+    return "<div class='tank-row waste-oil-row" + (isHigh ? " alarm-row" : "") + "' " + buildDeliveryTooltip(t) + ">"
       + "<div>"
       +   "<div class='t-name'>" + t.fuelType + " <span class='waste-tag'>WASTE</span></div>"
       +   "<div class='t-type'>Tank " + t.id + "</div>"
@@ -1602,20 +1552,12 @@ function buildTankRow(t) {
   const pctSafe  = Math.min(t.pct, 100);
   const capTag   = t.capacityCap ? "<span class='cap-tag'>CAP " + t.capacityCap.toLocaleString() + " G</span>" : "";
   const siteUrl  = t._siteUrl || "";
-  const orders   = checkAndClearOrderFlag(siteUrl, t.id, t.lastDelivery);
-  const hasOrder = orders.length > 0;
-  const galStrs  = orders.map(o => o.gallons ? o.gallons.toLocaleString() + " G" : null).filter(Boolean);
-  const galLabel = galStrs.join(" / ");
-  const titleParts = orders.map((o, idx) => "Order " + (idx+1) + ": " + o.flagDate + (o.gallons ? " (" + o.gallons.toLocaleString() + " G)" : ""));
-  const flagTitle  = hasOrder
-    ? titleParts.join(" | ") + (orders.length < 2 ? " \u2014 click to add 2nd order" : " \u2014 click to clear oldest | hold to clear all")
-    : "Mark as ordered";
-  const flagClass   = "order-flag-btn" + (hasOrder ? " order-flag-active" : "");
-  const flagLabel   = encodeURIComponent(t.fuelType + " \u00b7 Tank " + t.id);
-  const flagContent = hasOrder ? ("&#128666;" + (galLabel ? " " + galLabel : "")) : "&#128666;";
-  const flagBtn     = "<button class='" + flagClass + "' data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' data-label='" + flagLabel + "' data-ullage='" + (t.ullage || 0) + "' title='" + flagTitle.replace(/'/g, "") + "'>" + flagContent + "</button>";
-  const delivText   = buildDeliveryText(t).replace(/'/g, "&#39;").replace(/\n/g, "&#10;");
-  return "<div class='tank-row " + rc + "' data-site-idx='" + (t._siteIdx !== undefined ? t._siteIdx : '') + "' data-tank-id='" + t.id + "' data-delivery-text='" + delivText + "'>"
+  const flagDate = checkAndClearOrderFlag(siteUrl, t.id, t.lastDelivery);
+  const orderedBy  = getOrderFlagBy(siteUrl, t.id);
+  const flagTitle  = flagDate ? "On order since " + flagDate + " - click to clear" : "Mark as ordered";
+  const flagClass  = "order-flag-btn" + (flagDate ? " order-flag-active" : "");
+  const flagBtn    = "<button class='" + flagClass + "' data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' title='" + flagTitle.replace(/'/g, "") + "'>&#128666;</button>";
+  return "<div class='tank-row " + rc + "' " + buildDeliveryTooltip(t) + ">"
     + "<div>"
     +   "<div class='t-name'>" + t.fuelType + capTag + "</div>"
     +   "<div class='t-type'>Tank " + t.id + "</div>"
@@ -1653,9 +1595,13 @@ function buildCardHTML(site) {
   const urgent      = (site.alarms || []).filter(isUrgent);
   const totalAlarms = (site.alarms || []).length;
   const wasteHigh   = (site.tanks || []).some(t => t.override && t.override.isWasteOil && t.pct >= t.override.highAlertPct);
+  const siteIdx     = SITES.findIndex(s => s.name === site.name);
+  const backupIp    = siteIdx >= 0 ? getBackupIp(siteIdx) : null;
   let badgeClass, badgeText;
   if (hasError) {
     badgeClass = "b-error"; badgeText = "Offline";
+  } else if (site.usingBackup) {
+    badgeClass = "b-backup"; badgeText = "Backup IP";
   } else if (urgent.length > 0 || wasteHigh) {
     const count = urgent.length + (wasteHigh ? 1 : 0);
     badgeClass = "b-alarm"; badgeText = count + " Urgent";
@@ -1665,9 +1611,10 @@ function buildCardHTML(site) {
     badgeClass = "b-ok"; badgeText = "Online (" + site.tanks.length + " tanks)";
   }
   const shortUrl = site.url.replace("http://", "");
+  const backupLabel = site.usingBackup ? "<span class='backup-badge'>&#9888; Using backup: " + (site.backupUrl || "").replace("http://","").replace(":10001","") + "</span>" : "";
   let html = "<div class='site-hdr'>"
     + "<div>"
-    + "<div class='site-name'>" + site.name + "</div>"
+    + "<div class='site-name'>" + site.name + backupLabel + "</div>"
     + "<div class='site-addr'>" + site.addr + "</div>"
     + "<a class='site-link' href='" + site.url + "/php/Inventory.php' target='_blank'>" + shortUrl + " &#8599;</a>"
     + "</div>"
@@ -1675,16 +1622,75 @@ function buildCardHTML(site) {
     + "</div>";
   if (hasError) {
     html += "<div class='err-msg'>&#9888; " + site.error + "</div>";
+    // Backup IP input
+    if (siteIdx >= 0) {
+      const existingIp = backupIp || "";
+      html += "<div class='backup-input-wrap'>"
+        + "<label>&#128279; " + (existingIp ? "Backup IP active: <strong>" + existingIp + "</strong>" : "Try alternate IP address:") + "</label>"
+        + "<div class='backup-input-row'>"
+        + "<input class='backup-ip-input' type='text' placeholder='e.g. 192.168.1.100' value='" + existingIp + "' data-site-idx='" + siteIdx + "' id='backup-input-" + siteIdx + "'>"
+        + "<button class='backup-ip-btn' data-site-idx='" + siteIdx + "'>&#8594; Try</button>"
+        + (existingIp ? "<button class='backup-clear-btn' data-site-idx='" + siteIdx + "'>&#10005; Clear</button>" : "")
+        + "</div>"
+        + "</div>";
+    }
   } else if (hasData) {
     html += buildAlarmSection(site.alarms || [], site.url);
     html += "<div class='tank-list'>";
     site.tanks.forEach(t => { html += buildTankRow(t); });
     html += "</div>";
+    // Show clear backup option if using backup
+    if (site.usingBackup && siteIdx >= 0) {
+      html += "<div class='backup-input-wrap'>"
+        + "<label>&#9888; Using backup IP. <button class='backup-clear-btn' data-site-idx='" + siteIdx + "'>&#10005; Clear backup &amp; retry primary</button></label>"
+        + "</div>";
+    }
   } else {
     html += "<div class='placeholder'>No tank data received</div>";
   }
   return html;
 }
+
+// ── Backup IP button handlers ──────────────────────────────────────────────
+document.addEventListener("click", function(e) {
+  // Try backup IP
+  const tryBtn = e.target.closest(".backup-ip-btn");
+  if (tryBtn) {
+    const idx   = parseInt(tryBtn.dataset.siteIdx, 10);
+    const input = document.getElementById("backup-input-" + idx);
+    const ip    = input ? input.value.trim() : "";
+    if (ip && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+      setBackupIp(idx, ip);
+      fetchAll();
+    } else {
+      input && (input.style.borderColor = "#f44336");
+    }
+    return;
+  }
+  // Clear backup IP
+  const clearBtn = e.target.closest(".backup-clear-btn");
+  if (clearBtn) {
+    const idx = parseInt(clearBtn.dataset.siteIdx, 10);
+    clearBackupIp(idx);
+    fetchAll();
+    return;
+  }
+});
+
+// Allow Enter key in backup input
+document.addEventListener("keydown", function(e) {
+  if (e.key !== "Enter") return;
+  const input = e.target.closest(".backup-ip-input");
+  if (!input) return;
+  const idx = parseInt(input.dataset.siteIdx, 10);
+  const ip  = input.value.trim();
+  if (ip && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+    setBackupIp(idx, ip);
+    fetchAll();
+  } else {
+    input.style.borderColor = "#f44336";
+  }
+});
 
 // ── Collapse toggle ────────────────────────────────────────────────────────
 
@@ -1776,7 +1782,7 @@ async function fetchAll() {
 
   // Process each site result from proxy — parse fuel types and alarms client-side
   proxyResults.forEach((proxyResult, i) => {
-    let result = { name: proxyResult.name, addr: proxyResult.addr, url: proxyResult.url, tanks: [], alarms: [], error: proxyResult.error || null };
+    let result = { name: proxyResult.name, addr: proxyResult.addr, url: proxyResult.url, tanks: [], alarms: [], error: proxyResult.error || null, usingBackup: proxyResult.usingBackup || false, backupUrl: proxyResult.backupUrl || null };
 
     if (!proxyResult.error && proxyResult.cgiData && proxyResult.cgiData.tankData) {
       const fuelMap     = proxyResult.invHtml ? parseFuelTypes(proxyResult.invHtml) : {};
@@ -1813,7 +1819,6 @@ async function fetchAll() {
           waterHeight:     t.waterHeight != null ? t.waterHeight : null,
           waterVolume:     t.waterVolume != null ? Math.round(t.waterVolume) : null,
           _siteUrl:    proxyResult.url,
-          _siteIdx:    i,
         });
       });
 
@@ -2107,57 +2112,67 @@ fetchAll();
 
 // ── Product filter ─────────────────────────────────────────────────────────
 
-// ── Product filter — 3 groups: Diesel, Gas, Other ─────────────────────────
-const FILTER_GROUPS = {
-  Diesel: f => { const n = (f||"").toLowerCase(); return n.includes("diesel") || n.includes("b20") || n.includes("biodiesel"); },
-  Gas:    f => { const n = (f||"").toLowerCase(); return n.includes("unleaded") || n.includes("e10") || n.includes("e85") || n.includes("flex"); },
-  Other:  f => { const n = (f||"").toLowerCase(); return !FILTER_GROUPS.Diesel(f) && !FILTER_GROUPS.Gas(f) && !n.includes("waste"); },
-};
-
-let activeFilters = new Set(); // empty = All — stores group names
-
-function saveFilterState() {
-  try { localStorage.setItem('atg_activeFilters', JSON.stringify([...activeFilters])); } catch(e) {}
-}
-
-function loadFilterState() {
-  try {
-    const saved = localStorage.getItem('atg_activeFilters');
-    if (saved) activeFilters = new Set(JSON.parse(saved).filter(g => FILTER_GROUPS[g]));
-  } catch(e) {}
-}
+let activeFilters = new Set(); // empty = All
 
 function buildFilterPills() {
   const container = document.getElementById("product-filters");
   if (!container) return;
   const checkbox = document.getElementById("filter-enabled");
-  if (checkbox && !checkbox.checked) { container.style.display = "none"; return; }
+  // Only show pills if checkbox is checked
+  if (checkbox && !checkbox.checked) {
+    container.style.display = "none";
+    return;
+  }
   if (checkbox && checkbox.checked) container.style.display = "flex";
 
-  // Only show groups that have matching tanks
-  const present = new Set();
+  // Collect all unique product types from loaded results
+  const products = new Set();
   allSiteResults.forEach(result => {
     if (!result || result.error) return;
     (result.tanks || []).forEach(t => {
-      if (t.override && t.override.isWasteOil) return;
-      Object.entries(FILTER_GROUPS).forEach(([name, fn]) => { if (fn(t.fuelType)) present.add(name); });
+      if (t.override && t.override.isWasteOil) return; // exclude waste oil from filter
+      if (t.fuelType) products.add(t.fuelType);
     });
   });
 
-  let html = "<button class='filter-pill pill-all" + (activeFilters.size === 0 ? " active" : "") + "' data-group='__all__'>All</button>";
-  ["Diesel", "Gas", "Other"].forEach(name => {
-    if (!present.has(name)) return;
-    html += "<button class='filter-pill" + (activeFilters.has(name) ? " active" : "") + "' data-group='" + name + "'>" + name + "</button>";
+  // Custom sort order — diesel group first, then ethanol group, then everything else alphabetically
+  const ORDER = [
+    "B20 Biodiesel",
+    "On-road Diesel",
+    "Off-road Diesel",
+    "E10 Unleaded",
+    "E85 Flex Fuel",
+  ];
+  const sorted = Array.from(products).sort((a, b) => {
+    const ai = ORDER.indexOf(a);
+    const bi = ORDER.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;  // both in order list
+    if (ai !== -1) return -1;                      // a is ordered, b is not
+    if (bi !== -1) return 1;                       // b is ordered, a is not
+    return a.localeCompare(b);                     // both unordered — alphabetical
+  });
+
+  // Build pills — preserve active state across rebuilds
+  let html = "<button class='filter-pill pill-all" + (activeFilters.size === 0 ? " active" : "") + "' data-product='__all__'>All</button>";
+  sorted.forEach(p => {
+    const isActive = activeFilters.has(p);
+    html += "<button class='filter-pill" + (isActive ? " active" : "") + "' data-product='" + p.replace(/'/g, "&#39;") + "'>" + p + "</button>";
   });
   container.innerHTML = html;
 
+  // Wire up clicks
   container.querySelectorAll(".filter-pill").forEach(btn => {
     btn.addEventListener("click", () => {
-      const group = btn.getAttribute("data-group");
-      if (group === "__all__") { activeFilters.clear(); }
-      else if (activeFilters.has(group)) { activeFilters.delete(group); }
-      else { activeFilters.add(group); }
-      saveFilterState();
+      const product = btn.getAttribute("data-product");
+      if (product === "__all__") {
+        activeFilters.clear();
+      } else {
+        if (activeFilters.has(product)) {
+          activeFilters.delete(product);
+        } else {
+          activeFilters.add(product);
+        }
+      }
       buildFilterPills();
       applyProductFilter();
     });
@@ -2165,10 +2180,11 @@ function buildFilterPills() {
 }
 
 function applyProductFilter() {
-  const grid = document.getElementById("site-grid");
+  const grid  = document.getElementById("site-grid");
   if (!grid) return;
   const cards = grid.querySelectorAll(".site-card");
 
+  // All selected or nothing selected = show everything
   if (activeFilters.size === 0) {
     cards.forEach(card => {
       card.style.display = "";
@@ -2180,16 +2196,25 @@ function applyProductFilter() {
   cards.forEach((card, i) => {
     const result = allSiteResults[i];
     if (!result || result.error) return;
+
     let cardHasMatch = false;
     const rows = card.querySelectorAll(".tank-row");
+
     rows.forEach((row, ri) => {
       const tank = (result.tanks || [])[ri];
       if (!tank) { row.style.display = "none"; return; }
-      if (tank.override && tank.override.isWasteOil) { row.style.display = ""; return; }
-      const match = [...activeFilters].some(g => FILTER_GROUPS[g] && FILTER_GROUPS[g](tank.fuelType));
+
+      // Waste oil always visible when filters active
+      if (tank.override && tank.override.isWasteOil) {
+        row.style.display = "";
+        return;
+      }
+
+      const match = activeFilters.has(tank.fuelType);
       row.style.display = match ? "" : "none";
       if (match) cardHasMatch = true;
     });
+
     card.style.display = cardHasMatch ? "" : "none";
   });
 }
@@ -2201,17 +2226,17 @@ function applyProductFilter() {
   const pillsWrap = document.getElementById("product-filters");
   if (!checkbox || !pillsWrap) return;
 
-  loadFilterState();
-
   checkbox.addEventListener("change", function() {
     if (this.checked) {
       pillsWrap.style.display = "flex";
+      // Build pills now in case data already loaded
       buildFilterPills();
     } else {
       activeFilters.clear();
       pillsWrap.style.display = "none";
       applyProductFilter();
     }
+    // Save checkbox state
     try { localStorage.setItem('atg_filterEnabled', this.checked ? '1' : ''); } catch(e) {}
   });
 
@@ -2304,150 +2329,59 @@ function orderTimestamp() {
 
 // Build order text filtered by a product classifier function
 // Build both HTML (for modal display) and plain text (for copy)
-
-// ── Load grouping helpers ─────────────────────────────────────────────────
-const BULK_MIN = 6000;
-
-function isDieselFamily(fuelType) {
-  const f = (fuelType || "").toLowerCase();
-  return f.includes("diesel") || f.includes("b20") || f.includes("biodiesel");
-}
-
-function isGasFamily(fuelType) {
-  const f = (fuelType || "").toLowerCase();
-  return f.includes("unleaded") || f.includes("e10") || f.includes("e85") || f.includes("flex");
-}
-
-function allocateCompartments(ullage, cap) {
-  const space = Math.min(ullage, cap);
-  if (space <= 0) return 0;
-  let total = 0;
-  for (const comp of COMPARTMENTS) {
-    if (total + comp <= space) total += comp;
-  }
-  return total;
-}
-
-function buildLoadPlans(eligibleTanks) {
-  const families = { diesel: [], gas: [] };
-  eligibleTanks.forEach(item => {
-    if (isDieselFamily(item.tank.fuelType)) families.diesel.push(item);
-    else if (isGasFamily(item.tank.fuelType)) families.gas.push(item);
-  });
-  const loads = [];
-  Object.entries(families).forEach(([family, items]) => {
-    const cap = family === "diesel" ? 8500 : 7500;
-    items.sort((a, b) => (b.tank.ullage || 0) - (a.tank.ullage || 0));
-    const used = new Set();
-    items.forEach((primary, pi) => {
-      if (used.has(pi)) return;
-      const stops = [];
-      let remaining = cap;
-      const primaryAlloc = allocateCompartments(primary.tank.ullage || 0, remaining);
-      if (primaryAlloc > 0) {
-        stops.push({ site: primary.site, tank: primary.tank, allocated: primaryAlloc });
-        remaining -= primaryAlloc;
-        used.add(pi);
-      }
-      if (stops.length > 0 && stops.reduce((s, x) => s + x.allocated, 0) < BULK_MIN && remaining > 0) {
-        for (let si = 0; si < items.length; si++) {
-          if (used.has(si)) continue;
-          const secondary = items[si];
-          if (secondary.site.name === primary.site.name) continue;
-          const secAlloc = allocateCompartments(secondary.tank.ullage || 0, remaining);
-          if (secAlloc <= 0) continue;
-          stops.push({ site: secondary.site, tank: secondary.tank, allocated: secAlloc });
-          remaining -= secAlloc;
-          used.add(si);
-          break;
-        }
-      }
-      if (stops.length === 0) return;
-      const totalAlloc = stops.reduce((s, x) => s + x.allocated, 0);
-      loads.push({ family, cap, stops, totalAllocated: totalAlloc, isBulk: totalAlloc >= BULK_MIN });
-    });
-  });
-  return loads;
-}
-
-function renderLoadLines(loads, bulkColor) {
-  let html = "", plainText = "";
-  loads.forEach((load, li) => {
-    const color     = load.isBulk ? bulkColor : "#ff9800";
-    const typeLabel = load.isBulk ? "BULK TRANSPORT" : "TANK-WAGON (below 6,000 G)";
-    const hdr       = "Load " + (li + 1) + " \u2014 " + load.family.toUpperCase()
-      + " \u2014 " + load.totalAllocated.toLocaleString() + " G total"
-      + " \u2014 <span style='color:" + color + ";font-weight:bold'>" + typeLabel + "</span>";
-    const hdrTxt    = "LOAD " + (li + 1) + " - " + load.family.toUpperCase()
-      + " - " + load.totalAllocated.toLocaleString() + " G TOTAL - " + (load.isBulk ? "BULK TRANSPORT" : "TANK-WAGON");
-    html      += "<div class='order-site-block'><div class='order-site-name'>" + hdr + "</div>";
-    plainText += hdrTxt + "\n";
-    load.stops.forEach(stop => {
-      const t     = stop.tank;
-      const inStr = t.grossHeight ? " (" + t.grossHeight + " in)" : "";
-      const site  = stop.site.name + ", " + stop.site.addr;
-      html += "<div class='order-tank-line'>"
-        + stop.allocated.toLocaleString() + " G of " + t.fuelType.toUpperCase()
-        + " \u2014 Tank " + t.id + " @ " + site
-        + " (current " + t.vol.toLocaleString() + " G, ullage " + t.ullage.toLocaleString() + " G" + inStr + ")"
-        + "</div>";
-      plainText += "\t" + stop.allocated.toLocaleString() + " G of " + t.fuelType.toUpperCase()
-        + " - Tank " + t.id + " @ " + site
-        + " (current " + t.vol.toLocaleString() + " G, ullage " + t.ullage.toLocaleString() + " G" + inStr + ")\n";
-    });
-    html      += "</div>";
-    plainText += "\n";
-  });
-  return { html, plainText };
-}
-
-// ── Fuel Order ────────────────────────────────────────────────────────────
 function buildOrderContent(title, productFilter) {
   const timestamp = orderTimestamp();
   let html      = "<div class='order-modal-header'>" + title + " &mdash; " + timestamp + "</div>";
   let plainText = title + " - " + timestamp + "\n\n";
+  let anyOrders = false;
 
-  const eligible = [];
   allSiteResults.forEach(result => {
     if (!result || result.error) return;
-    (result.tanks || []).forEach(t => {
-      if (!tankNeedsOrder(t) || !productFilter(t.fuelType) || (t.ullage || 0) <= 0) return;
-      eligible.push({ site: result, tank: t });
+
+    const siteTanks = (result.tanks || []).filter(t =>
+      tankNeedsOrder(t) && productFilter(t.fuelType)
+    );
+    const orderableTanks = siteTanks.filter(t => (t.ullage || 0) > 0);
+    if (orderableTanks.length === 0) return;
+
+    anyOrders = true;
+    const siteLine = result.name + ", " + result.addr;
+    html      += "<div class='order-site-block'>";
+    html      += "<div class='order-site-name'>" + siteLine + "</div>";
+    plainText += siteLine.toUpperCase() + "\n";
+
+    orderableTanks.forEach(t => {
+      const inStr       = t.grossHeight ? " (" + t.grossHeight + " in)" : "";
+      const compartmentAmt = recommendOrder(t.vol, t.fuelType, t.capacityCap, t.ullage);
+      // If no compartment fits, show actual ullage as the need — dispatcher can split load
+      const recommended = isFuelProduct(t.fuelType)
+        ? (compartmentAmt > 0 ? compartmentAmt : t.ullage)
+        : t.ullage;
+      const isPartialLoad = isFuelProduct(t.fuelType) && compartmentAmt === 0;
+      const recFmt  = recommended.toLocaleString();
+      const tankRef = "Tank " + t.id + " - " + t.fuelType;
+      const current = "Current level " + t.vol.toLocaleString() + " G" + inStr;
+
+      // HTML line — caps for quantity and product
+      const noteStr = isPartialLoad ? " <em style='color:#ff9800;font-size:10px'>(under min compartment — advise vendor)</em>" : "";
+      html += "<div class='order-tank-line'>"
+        + recFmt + " G of " + t.fuelType.toUpperCase()
+        + " for " + tankRef + ", " + current + noteStr
+        + "</div>";
+
+      // Plain text line
+      const noteTxt = isPartialLoad ? " (under min compartment — advise vendor)" : "";
+      plainText += "\t" + recFmt + " G of " + t.fuelType.toUpperCase()
+        + " for " + tankRef + ", " + current + noteTxt + "\n";
     });
+
+    html      += "</div>";
+    plainText += "\n";
   });
 
-  if (eligible.length === 0) {
+  if (!anyOrders) {
     html      += "<div class='order-empty'>&#10003; No tanks currently requiring an order.</div>";
     plainText += "No tanks currently requiring an order.\n";
-    return { html, plainText, title, timestamp };
-  }
-
-  const fuelTanks = eligible.filter(e => isDieselFamily(e.tank.fuelType) || isGasFamily(e.tank.fuelType));
-  const lubeTanks = eligible.filter(e => !isDieselFamily(e.tank.fuelType) && !isGasFamily(e.tank.fuelType));
-
-  const loads    = buildLoadPlans(fuelTanks);
-  const rendered = renderLoadLines(loads, "#47C13C");
-  html      += rendered.html;
-  plainText += rendered.plainText;
-
-  if (lubeTanks.length > 0) {
-    const bySite = {};
-    lubeTanks.forEach(e => {
-      if (!bySite[e.site.name]) bySite[e.site.name] = { site: e.site, tanks: [] };
-      bySite[e.site.name].tanks.push(e.tank);
-    });
-    Object.values(bySite).forEach(({ site, tanks }) => {
-      html      += "<div class='order-site-block'><div class='order-site-name'>" + site.name + ", " + site.addr + "</div>";
-      plainText += (site.name + ", " + site.addr).toUpperCase() + "\n";
-      tanks.forEach(t => {
-        const inStr = t.grossHeight ? " (" + t.grossHeight + " in)" : "";
-        html += "<div class='order-tank-line'>" + t.ullage.toLocaleString() + " G of " + t.fuelType.toUpperCase()
-          + " \u2014 Tank " + t.id + " (current " + t.vol.toLocaleString() + " G" + inStr + ")</div>";
-        plainText += "\t" + t.ullage.toLocaleString() + " G of " + t.fuelType.toUpperCase()
-          + " - Tank " + t.id + " (current " + t.vol.toLocaleString() + " G" + inStr + ")\n";
-      });
-      html += "</div>"; plainText += "\n";
-    });
   }
 
   return { html, plainText, title, timestamp };
@@ -2485,60 +2419,100 @@ document.getElementById("order-modal-copy").addEventListener("click", function()
 });
 
 </script>
+</body>
+</html>
 <script>
 // ── STC 1510B Contract Order ───────────────────────────────────────────────
 
 const CONTRACT_INFO = {
-  number:       "STC 1510B",
-  name:         "Fuels",
-  zone:         "8",
-  zoneArea:     "Wake County / Raleigh NC",
-  vendor:       "James River Solutions",
-  pricingUrl:   "https://www.doa.nc.gov/divisions/purchase-contract/weekly-fuel-prices",
-  bulkMin:      6000,
-  tankWagonMin: 500,
+  number:      "STC 1510B",
+  name:        "Fuels",
+  zone:        "8",
+  zoneArea:    "Wake County / Raleigh NC",
+  vendor:      "James River Solutions",
+  pricingUrl:  "https://www.doa.nc.gov/divisions/purchase-contract/weekly-fuel-prices",
+  bulkMin:     6000,  // gallons — bulk transport threshold
+  tankWagonMin: 500,  // gallons — minimum order
 };
+
+function getDeliveryType(ullage) {
+  if (ullage >= CONTRACT_INFO.bulkMin)      return "BULK TRANSPORT";
+  if (ullage >= CONTRACT_INFO.tankWagonMin) return "TANK-WAGON";
+  return null; // below minimum
+}
 
 function buildContractOrderContent() {
   const timestamp = orderTimestamp();
-  const header    = "COR FLEET ATG CONTRACT ORDER (" + CONTRACT_INFO.number + ") \u2014 " + timestamp;
+  const header = "COR FLEET ATG CONTRACT ORDER (" + CONTRACT_INFO.number + ") — " + timestamp;
   const subheader = "Zone " + CONTRACT_INFO.zone + " \u2014 " + CONTRACT_INFO.zoneArea;
 
   let html = "<div class='order-modal-header'>"
-    + header + "<br>" + subheader + "<br>"
+    + header + "<br>"
+    + subheader + "<br>"
     + "<strong style='color:#00bcd4'>" + CONTRACT_INFO.vendor + "</strong>"
     + " &nbsp;\u00b7&nbsp; "
     + "<a href='" + CONTRACT_INFO.pricingUrl + "' target='_blank' style='color:#00bcd4;font-size:11px'>Weekly Pricing &#8599;</a>"
     + "<br><span style='color:#ff9800;font-size:10px'>&#9888; Verify current Zone 8 vendor at weekly pricing link before ordering</span>"
     + "</div>";
 
-  let plainText = header + "\n" + subheader + "\n"
+  let plainText = header + "\n"
+    + subheader + "\n"
     + "Vendor: " + CONTRACT_INFO.vendor + " (verify at weekly pricing)\n"
     + "Pricing: " + CONTRACT_INFO.pricingUrl + "\n\n";
 
-  const eligible = [];
+  let anyOrders = false;
+
   allSiteResults.forEach(result => {
     if (!result || result.error) return;
-    (result.tanks || []).forEach(t => {
-      if (!t || (t.override && t.override.isWasteOil)) return;
-      if (!t.vol || t.vol === 0) return;
-      if (!isFuelProduct(t.fuelType)) return;
-      if (getOrderFlag(t._siteUrl || "", String(t.id))) return;
-      if ((t.ullage || 0) < CONTRACT_INFO.tankWagonMin) return;
-      eligible.push({ site: result, tank: t });
+
+    const siteTanks = (result.tanks || []).filter(t => {
+      if (!t) return false;
+      if (t.override && t.override.isWasteOil) return false;
+      if (!t.vol || t.vol === 0) return false;
+      if (!isFuelProduct(t.fuelType)) return false;
+      // Exclude ON ORDER tanks
+      const flagDate = getOrderFlag(t._siteUrl || "", String(t.id));
+      if (flagDate) return false;
+      // Must have at least tank-wagon minimum ullage
+      return (t.ullage || 0) >= CONTRACT_INFO.tankWagonMin;
     });
+
+    if (siteTanks.length === 0) return;
+    anyOrders = true;
+
+    const siteLine = result.name + ", " + result.addr;
+    html += "<div class='order-site-block'>";
+    html += "<div class='order-site-name'>" + siteLine + "</div>";
+    plainText += siteLine.toUpperCase() + "\n";
+
+    siteTanks.forEach(t => {
+      const delivType = getDeliveryType(t.ullage);
+      if (!delivType) return;
+
+      const typeColor = delivType === "BULK TRANSPORT" ? "#00bcd4" : "#80deea";
+      const inStr     = t.grossHeight ? " (" + t.grossHeight + " in)" : "";
+
+      html += "<div class='order-tank-line'>"
+        + "Tank " + t.id + " - " + t.fuelType.toUpperCase()
+        + " &nbsp;|&nbsp; Ullage: <strong>" + t.ullage.toLocaleString() + " G</strong>"
+        + " &nbsp;|&nbsp; Current: " + t.vol.toLocaleString() + " G" + inStr
+        + " &nbsp;|&nbsp; <span style='color:" + typeColor + ";font-weight:bold'>" + delivType + "</span>"
+        + "</div>";
+
+      plainText += "\tTank " + t.id + " - " + t.fuelType.toUpperCase()
+        + " | Ullage: " + t.ullage.toLocaleString() + " G"
+        + " | Current: " + t.vol.toLocaleString() + " G" + inStr
+        + " | " + delivType + "\n";
+    });
+
+    html += "</div>";
+    plainText += "\n";
   });
 
-  if (eligible.length === 0) {
-    html      += "<div class='order-empty'>&#10003; No tanks meet minimum order requirements.</div>";
-    plainText += "No tanks meet minimum order requirements.\n";
-    return { html, plainText };
+  if (!anyOrders) {
+    html += "<div class='order-empty'>&#10003; No tanks meet minimum order requirements.</div>";
+    plainText += "No tanks meet minimum order requirements (" + CONTRACT_INFO.tankWagonMin + "G minimum).\n";
   }
-
-  const loads    = buildLoadPlans(eligible);
-  const rendered = renderLoadLines(loads, "#00bcd4");
-  html      += rendered.html;
-  plainText += rendered.plainText;
 
   return { html, plainText };
 }
@@ -2551,157 +2525,3 @@ document.getElementById("copy-contract-order-btn").addEventListener("click", fun
   document.getElementById("order-modal").style.display = "flex";
 });
 </script>
-
-<!-- Floating tank tooltip -->
-<div id="tank-tooltip"></div>
-
-<!-- Gallons prompt modal -->
-<div id="gallons-modal" class="modal-overlay" style="display:none">
-  <div class="modal-box" style="max-width:360px">
-    <div class="modal-hdr">
-      <span class="modal-title">&#128666; Mark as On Order</span>
-      <button id="gallons-modal-close" class="modal-close">&#10005;</button>
-    </div>
-    <div class="modal-body" style="padding:18px">
-      <div style="font-size:13px;color:#b0b0b0;margin-bottom:14px" id="gallons-modal-desc"></div>
-      <label style="font-size:12px;color:#8ab0d0;display:block;margin-bottom:6px">Gallons ordered <span style="color:#4a6a8a">(optional)</span></label>
-      <input id="gallons-input" type="number" min="0" step="100"
-        style="width:100%;padding:8px 10px;background:#0f3460;border:1px solid #324a5f;border-radius:6px;color:#fff;font-size:14px"
-        placeholder="e.g. 4700">
-      <div style="display:flex;gap:10px;margin-top:16px">
-        <button id="gallons-confirm-btn" class="modal-copy-btn" style="flex:1;padding:8px">&#10003; Confirm Order</button>
-        <button id="gallons-cancel-btn" class="modal-close" style="padding:8px 14px">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-// ── Gallons modal wiring ───────────────────────────────────────────────────
-document.getElementById("gallons-confirm-btn").addEventListener("click", confirmGallonsModal);
-document.getElementById("gallons-modal-close").addEventListener("click", closeGallonsModal);
-document.getElementById("gallons-cancel-btn").addEventListener("click", closeGallonsModal);
-document.getElementById("gallons-modal").addEventListener("click", function(e) { if (e.target === this) closeGallonsModal(); });
-document.getElementById("gallons-input").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") confirmGallonsModal();
-  if (e.key === "Escape") closeGallonsModal();
-});
-
-// ── Shift tooltip ──────────────────────────────────────────────────────────
-const shiftCache = {}, SHIFT_TTL = 5 * 60 * 1000;
-const DAY_ORDER  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-let _ttTarget = null, _ttTimer = null;
-
-function getTtEl() { return document.getElementById("tank-tooltip"); }
-
-function positionTooltip(e) {
-  const ttEl = getTtEl();
-  if (!ttEl || ttEl.style.display === "none") return;
-  const m = 12, w = ttEl.offsetWidth, h = ttEl.offsetHeight;
-  let x = e.clientX + m, y = e.clientY - h / 2;
-  if (x + w > window.innerWidth  - m) x = e.clientX - w - m;
-  if (y < m) y = m;
-  if (y + h > window.innerHeight - m) y = window.innerHeight - h - m;
-  ttEl.style.left = x + "px"; ttEl.style.top = y + "px";
-}
-
-function buildTooltipHTML(delivText, shiftData) {
-  let html = "";
-  if (delivText) {
-    // Parse the delivery text lines and style the amount line differently
-    const lines = delivText.replace(/&#10;/g, "\n").replace(/&#39;/g, "'").split("\n");
-    lines.forEach((line, i) => {
-      if (i === 0) {
-        // "Last Delivery: Jun 09, 2026" — normal style
-        html += "<div style='color:#b0b0b0;font-size:10px'>" + line + "</div>";
-      } else if (line.match(/^[+-][\d,]+ G/)) {
-        // "+4,946 G  (2,253 to 7,199 G)" — highlight the gallons amount
-        const match = line.match(/^([+-][\d,]+ G)(.*)/);
-        if (match) {
-          html += "<div style='margin:2px 0'>"
-            + "<span style='color:#47C13C;font-size:14px;font-weight:bold'>" + match[1] + "</span>"
-            + "<span style='color:#7a9bbf;font-size:10px'>" + match[2] + "</span>"
-            + "</div>";
-        } else {
-          html += "<div>" + line + "</div>";
-        }
-      } else {
-        // Temp Compensated, Water, etc — muted
-        html += "<div style='color:#7a9bbf;font-size:10px'>" + line + "</div>";
-      }
-    });
-  }
-  if (shiftData === "loading") {
-    html += (html ? "<br>" : "") + '<span class="tt-loading">Loading shift data\u2026</span>';
-  } else if (shiftData && typeof shiftData === "object") {
-    const rows = DAY_ORDER.map(day => {
-      const d = shiftData[day];
-      if (!d) return null;
-      const note = d.periods < 3 ? " <span style='color:#7a9bbf;font-size:9px'>(" + d.periods + "wk)</span>" : "";
-      return "<div class='tt-day-row'><span class='tt-day'>" + day + "</span><span class='tt-gal'>" + d.avg.toLocaleString() + " G" + note + "</span></div>";
-    }).filter(Boolean);
-    if (rows.length > 0) {
-      const total = DAY_ORDER.reduce((sum, day) => sum + (shiftData[day] ? shiftData[day].avg : 0), 0);
-      rows.push("<div class='tt-day-row' style='border-top:1px solid #324a5f;margin-top:4px;padding-top:4px'><span class='tt-day' style='color:#e0e0e0;font-weight:bold'>Weekly</span><span class='tt-gal'>" + Math.round(total).toLocaleString() + " G</span></div>");
-      html += (html ? "<hr style='border:none;border-top:1px solid #253a4f;margin:6px 0'>" : "") + "<div class='tt-section-hdr'>Avg Daily (3-wk)</div>" + rows.join("");
-    }
-  }
-  return html;
-}
-
-async function fetchShiftData(siteIdx, tankId) {
-  const key = siteIdx + "|" + tankId;
-  const cached = shiftCache[key];
-  if (cached && (Date.now() - cached.ts) < SHIFT_TTL) return cached.data;
-  const params = "?site=" + siteIdx + "&tank=" + tankId + (DASH_TOKEN ? "&token=" + encodeURIComponent(DASH_TOKEN) : "");
-  const resp = await fetch("/api/shift" + params, { cache: "no-store" });
-  if (!resp.ok) throw new Error("Shift error " + resp.status);
-  const json = await resp.json();
-  if (!json.ok) throw new Error(json.error || "Shift fetch failed");
-  shiftCache[key] = { data: json.data, ts: Date.now() };
-  return json.data;
-}
-
-let _hideTimer = null;
-
-document.addEventListener("mousemove", function(e) {
-  const row = e.target.closest(".tank-row[data-tank-id]");
-  const ttEl = getTtEl();
-  if (!ttEl) return;
-
-  if (!row || row.classList.contains("waste-oil-row")) {
-    if (!_hideTimer) {
-      _hideTimer = setTimeout(() => {
-        _hideTimer = null;
-        const tt = getTtEl();
-        if (tt) tt.style.display = "none";
-        _ttTarget = null;
-        clearTimeout(_ttTimer);
-      }, 80);
-    }
-    return;
-  }
-
-  if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
-  if (ttEl.style.display !== "none") positionTooltip(e);
-  if (_ttTarget === row) return;
-
-  const siteIdx  = row.dataset.siteIdx;
-  const tankId   = row.dataset.tankId;
-  const delivTxt = row.dataset.deliveryText || "";
-  if (siteIdx === undefined || siteIdx === null || siteIdx === "" || !tankId) return;
-
-  _ttTarget = row;
-  clearTimeout(_ttTimer);
-  ttEl.innerHTML = buildTooltipHTML(delivTxt, "loading");
-  ttEl.style.display = "block";
-  positionTooltip(e);
-
-  _ttTimer = setTimeout(() => {
-    fetchShiftData(siteIdx, tankId)
-      .then(data => { if (_ttTarget === row) { const tt = getTtEl(); if (tt) { tt.innerHTML = buildTooltipHTML(delivTxt, data); positionTooltip(e); }}})
-      .catch(err  => { console.error("Shift fetch failed:", err); if (_ttTarget === row) { const tt = getTtEl(); if (tt) tt.innerHTML = buildTooltipHTML(delivTxt, null); }});
-  }, 200);
-});
-</script>
-</body>
