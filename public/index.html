@@ -641,7 +641,8 @@ body.light .other-alarm-meta { color: #4a6a8a; }
   font-size: 11px; cursor: pointer; color: #7a9bbf;
   line-height: 1.4; transition: all 0.2s;
   display: block; margin-top: 3px; width: 100%;
-  text-align: center;
+  text-align: center; white-space: normal;
+  word-break: break-word; overflow: hidden;
 }
 .order-flag-btn:hover { border-color: #ff9800; color: #ff9800; }
 .order-flag-active {
@@ -1662,7 +1663,8 @@ function buildTankRow(t) {
   const flagClass   = "order-flag-btn" + (hasOrder ? " order-flag-active" : "");
   const flagLabel   = encodeURIComponent(t.fuelType + " \u00b7 Tank " + t.id);
   const flagContent = hasOrder ? ("&#128666;" + (galLabel ? " " + galLabel : "")) : "&#128666;";
-  const flagBtn     = "<button class='" + flagClass + "' data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' data-label='" + flagLabel + "' data-ullage='" + (t.ullage || 0) + "' title='" + flagTitle.replace(/'/g, "") + "'>" + flagContent + "</button>";
+  const flagStyle   = hasOrder && galLabel ? " style='font-size:10px'" : "";
+  const flagBtn     = "<button class='" + flagClass + "'" + flagStyle + " data-site='" + encodeURIComponent(siteUrl) + "' data-tank='" + String(t.id) + "' data-label='" + flagLabel + "' data-ullage='" + (t.ullage || 0) + "' title='" + flagTitle.replace(/'/g, "") + "'>" + flagContent + "</button>";
   const delivText   = buildDeliveryText(t).replace(/'/g, "&#39;").replace(/\n/g, "&#10;");
   return "<div class='tank-row " + rc + "' data-site-idx='" + (t._siteIdx !== undefined ? t._siteIdx : '') + "' data-tank-id='" + t.id + "' data-delivery-text='" + delivText + "'>"
     + "<div>"
