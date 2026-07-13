@@ -157,9 +157,10 @@ const DASH_TOKEN   = new URLSearchParams(window.location.search).get('token') ||
 const FLAGS_URL    = '/api/flags';
 const SHIFT_TTL    = 10 * 60 * 1000;
 const COMPARTMENTS = [2500, 2500, 1700, 1500, 1000];
-const BULK_MIN     = 6000;
-const FILL_TARGET  = 0.80;
-const MIN_DELIVERY = 500;   // Minimum for any delivery, tank-wagon or bulk
+const BULK_MIN      = 6000;
+const FILL_TARGET   = 0.80;
+const MIN_DELIVERY  = 500;
+const SAFETY_FLOOR  = 1000;  // Never delay if tank drops below this
 const NON_FUEL_ALERT_PCT = 25;
 
 const SITES = [
@@ -247,52 +248,49 @@ async function fetchShift(siteIdx, tankId) {
 
 // ── Projection logic ──────────────────────────────────────────────────────
 
-function get3DayConsumption(shiftData, delivHistory) {
-  // Project from 7 AM today through 7 AM on Day 4 (delivery morning)
-  // Day 1 = tomorrow, Day 2, Day 3 = days of consumption before truck arrives on Day 4
+function getConsumptionEstimate(shiftData, delivHistory) {
   const today = new Date();
-  let totalConsumption = 0;
+  let total3 = 0, total4 = 0;
   let minPeriods = 99;
   let usedFallback = false;
 
   if (shiftData) {
     let hasData = false;
-    // Consume today's remaining (from now to midnight), then days 1-3 in full
-    // Simplified: use today's avg × fraction remaining + next 3 days full avg
-    const todayName = DAY_NAMES[today.getDay()];
-    const hoursLeft = (24 - today.getHours()) / 24;
+    const todayName  = DAY_NAMES[today.getDay()];
+    const hoursLeft  = (24 - today.getHours()) / 24;
     const todayEntry = shiftData[todayName];
     if (todayEntry && todayEntry.avg > 0) {
-      totalConsumption += todayEntry.avg * hoursLeft;
+      const todayRem = todayEntry.avg * hoursLeft;
+      total3 += todayRem; total4 += todayRem;
       minPeriods = Math.min(minPeriods, todayEntry.periods || 1);
       hasData = true;
     }
-    // Days 1-3 full consumption
-    for (let d = 1; d <= 3; d++) {
+    for (let d = 1; d <= 4; d++) {
       const dayName = DAY_NAMES[(today.getDay() + d) % 7];
-      const entry = shiftData[dayName];
+      const entry   = shiftData[dayName];
       if (entry && entry.avg > 0) {
-        totalConsumption += entry.avg;
+        if (d <= 3) total3 += entry.avg;
+        total4 += entry.avg;
         minPeriods = Math.min(minPeriods, entry.periods || 1);
         hasData = true;
       }
     }
-    if (hasData) return { consumption: Math.round(totalConsumption), minPeriods, usedFallback: false };
+    if (hasData) return { consumption3: Math.round(total3), consumption4: Math.round(total4), minPeriods, usedFallback: false };
   }
 
-  // Fallback: inter-delivery rate × 3.5 days
+  // Fallback: inter-delivery rate
   if (delivHistory && delivHistory.length >= 2) {
     const rates = [];
     for (let i = 0; i < Math.min(delivHistory.length - 1, 4); i++) {
       const newer = delivHistory[i], older = delivHistory[i+1];
-      const days = (new Date(newer.dateOnly) - new Date(older.dateOnly)) / 86400000;
+      const days  = (new Date(newer.dateOnly) - new Date(older.dateOnly)) / 86400000;
       if (days <= 0) continue;
       const consumed = (older.endGrossVol || 0) - (newer.startGrossVol || 0);
       if (consumed > 0) rates.push(consumed / days);
     }
     if (rates.length > 0) {
       const avg = rates.reduce((a,b)=>a+b,0) / rates.length;
-      return { consumption: Math.round(avg * 3.5), minPeriods: 1, usedFallback: true };
+      return { consumption3: Math.round(avg * 3.5), consumption4: Math.round(avg * 4.5), minPeriods: 1, usedFallback: true };
     }
   }
 
@@ -317,6 +315,7 @@ function buildLoadPlans(tanks) {
     });
 
     const used = new Set();
+
     items.forEach((primary, pi) => {
       if (used.has(pi)) return;
       let remaining = cap;
@@ -324,29 +323,66 @@ function buildLoadPlans(tanks) {
 
       const pa = allocate(primary.projectedUllage, remaining);
       if (pa > 0) {
-        stops.push({ ...primary, allocated: pa });
+        stops.push({ ...primary, allocated: pa, delayed: false });
         remaining -= pa;
         used.add(pi);
       }
 
-      // Try second stop if below bulk min
-      if (stops.length > 0 && stops.reduce((s,x)=>s+x.allocated,0) < BULK_MIN && remaining >= MIN_DELIVERY) {
+      if (stops.length === 0) return;
+      const currentTotal = stops.reduce((s,x) => s + x.allocated, 0);
+
+      // Try second stop (Day 4) to hit bulk min
+      let secondFound = false;
+      if (currentTotal < BULK_MIN && remaining >= MIN_DELIVERY) {
         for (let si = 0; si < items.length; si++) {
           if (used.has(si)) continue;
           const secondary = items[si];
-          // Allow same site for second stop
           const sa = allocate(secondary.projectedUllage, remaining);
           if (sa < MIN_DELIVERY) continue;
-          stops.push({ ...secondary, allocated: sa });
+          stops.push({ ...secondary, allocated: sa, delayed: false });
           remaining -= sa;
           used.add(si);
+          secondFound = true;
           break;
         }
       }
 
-      if (stops.length === 0) return;
-      const total = stops.reduce((s,x)=>s+x.allocated,0);
-      loads.push({ family, cap, stops, total, isBulk: total >= BULK_MIN });
+      const afterSecond = stops.reduce((s,x) => s + x.allocated, 0);
+
+      // Still below bulk — try delaying the whole load one day (Day 5)
+      // Only if: no tank would drop below SAFETY_FLOOR by Day 5
+      if (afterSecond < BULK_MIN) {
+        // Check if any stop tank is unsafe to delay
+        const anyUnsafe = stops.some(s => {
+          const volAfter4Days = s.currentVol - (s.consumption4 || s.consumption3 || 0);
+          return volAfter4Days < SAFETY_FLOOR;
+        });
+
+        if (!anyUnsafe) {
+          // Try pairing with a tank that becomes available on Day 5
+          for (let si = 0; si < items.length; si++) {
+            if (used.has(si)) continue;
+            const candidate = items[si];
+            // Would dropping below safety if we wait?
+            const candVolAfter4 = candidate.currentVol - (candidate.consumption4 || candidate.consumption3 || 0);
+            if (candVolAfter4 < SAFETY_FLOOR) continue;
+            // Use Day 5 ullage for candidate
+            const candUllage5 = candidate.projectedUllage5 || candidate.projectedUllage;
+            const sa = allocate(candUllage5, remaining);
+            if (sa < MIN_DELIVERY) continue;
+            // Mark all stops as delayed and add candidate
+            stops.forEach(s => s.delayed = true);
+            stops.push({ ...candidate, allocated: sa, delayed: true });
+            remaining -= sa;
+            used.add(si);
+            break;
+          }
+        }
+      }
+
+      const total = stops.reduce((s,x) => s + x.allocated, 0);
+      const anyDelayed = stops.some(s => s.delayed);
+      loads.push({ family, cap, stops, total, isBulk: total >= BULK_MIN, delayed: anyDelayed });
     });
   });
 
@@ -358,10 +394,10 @@ function buildLoadPlans(tanks) {
 let _lastPlainText = '';
 
 function renderResults(tankData) {
-  const deliveryDate = new Date();
-  deliveryDate.setDate(deliveryDate.getDate() + 4); // Day 4 = delivery morning
-  const deliveryDateStr = deliveryDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const deliveryDateShort = deliveryDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const day4 = new Date(); day4.setDate(day4.getDate() + 4);
+  const day5 = new Date(); day5.setDate(day5.getDate() + 5);
+  const fmtDate = d => d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const fmtShort = d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const now = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   const fuelTanks    = tankData.filter(t => isFuel(t.fuelType) && t.projectedUllage >= MIN_DELIVERY);
@@ -370,13 +406,13 @@ function renderResults(tankData) {
   const loads = buildLoadPlans(fuelTanks);
 
   let html = '';
-  let plain = 'COR Fleet Fuel Order for ' + deliveryDateStr + '\n\n';
+  let plain = 'COR Fleet Fuel Order for ' + fmtDate(day4) + '\n\n';
 
   // Banner
   html += "<div class='forecast-banner'>"
-    + "<div><div class='fb-label'>Requested delivery date</div><div class='fb-val'>" + deliveryDateStr + " &nbsp;&mdash;&nbsp; 7:00 AM</div></div>"
+    + "<div><div class='fb-label'>Default delivery date</div><div class='fb-val'>" + fmtDate(day4) + " &nbsp;&mdash;&nbsp; 7:00 AM</div></div>"
     + "<div><div class='fb-label'>Fill target</div><div class='fb-val'>80% of tank capacity</div></div>"
-    + "<div><div class='fb-label'>Min delivery</div><div class='fb-val'>1,500 G</div></div>"
+    + "<div><div class='fb-label'>Min delivery</div><div class='fb-val'>500 G</div></div>"
     + "<div class='fb-note'>Generated " + now + "</div>"
     + "</div>";
 
@@ -387,22 +423,32 @@ function renderResults(tankData) {
     plain += 'RECOMMENDED FUEL LOADS\n' + '-'.repeat(40) + '\n\n';
 
     loads.forEach((load, li) => {
+      const loadDate     = load.delayed ? day5 : day4;
+      const loadDateStr  = fmtDate(loadDate);
+      const loadDateShrt = fmtShort(loadDate);
       const badge   = load.isBulk
         ? "<span class='bulk-badge'>BULK TRANSPORT &#10003;</span>"
         : "<span class='tankwagon-badge'>TANK-WAGON &#9888;</span>";
+      const delayNote = load.delayed
+        ? "<span style='color:#ffe082;font-size:11px;margin-left:8px'>&#128337; Delayed +1 day to reach bulk minimum</span>"
+        : "";
       const loadLbl = 'Load ' + (li + 1) + ' \u2014 ' + (load.family === 'diesel' ? 'DIESEL' : 'GASOLINE');
 
       html += "<div class='load-card'>"
         + "<div class='load-card-hdr'>"
+        + "<div>"
         + "<div class='load-title'>" + loadLbl + "</div>"
+        + "<div style='font-size:11px;color:#ffe082;margin-top:2px'>&#128197; " + loadDateStr + " &nbsp;7:00 AM" + (load.delayed ? " &nbsp;&#8593; delayed for bulk" : "") + "</div>"
+        + "</div>"
         + "<div style='display:flex;align-items:center;gap:8px'>"
         + "<span class='load-total'>" + load.total.toLocaleString() + " G total</span>"
         + badge
         + "</div></div>";
 
-      plain += 'LOAD ' + (li + 1) + ' - ' + (load.family === 'diesel' ? 'DIESEL' : 'GASOLINE') + ' + ' + load.total.toLocaleString() + ' G\n';
+      plain += 'LOAD ' + (li + 1) + ' - ' + (load.family === 'diesel' ? 'DIESEL' : 'GASOLINE') + ' + ' + load.total.toLocaleString() + ' G';
+      plain += (load.delayed ? ' (delivery ' + loadDateShrt + ')' : '') + '\n';
 
-      load.stops.forEach((stop, si) => {
+      load.stops.forEach((stop) => {
         const orders    = stop.orders || [];
         const pendingG  = orders.reduce((s,o)=>s+(o.gallons||0),0);
         const displayFuel = normaliseFuelType(stop.fuelType);
@@ -410,6 +456,12 @@ function renderResults(tankData) {
         const confWarn  = stop.usedFallback
           ? "<span class='confidence-warn'>&#9888; est. from delivery history</span>"
           : (stop.minPeriods < 2 ? "<span class='confidence-warn'>&#9888; limited shift data</span>" : "");
+
+        // Use Day 5 consumption if delayed
+        const consumption  = stop.delayed ? (stop.consumption4 || stop.consumption3) : stop.consumption3;
+        const projVol      = stop.delayed ? stop.projectedVol5 : stop.projectedVol;
+        const projAfter    = Math.min(projVol + stop.allocated, stop.capacity);
+        const projAfterPct = Math.round((projAfter / stop.capacity) * 100);
 
         html += "<div class='load-stop'>"
           + "<div class='stop-site'>" + stop.siteName + " &mdash; " + stop.siteAddr + "</div>"
@@ -420,12 +472,12 @@ function renderResults(tankData) {
           + "<div class='stop-lines'>"
           + "<div><span class='sl-key'>Right now:</span><span class='sl-val'>" + stop.currentVol.toLocaleString() + " G (" + stop.currentPct + "% full)</span></div>"
           + (pendingG > 0 ? "<div><span class='sl-key'>Order pending:</span><span class='sl-val green'>+" + pendingG.toLocaleString() + " G already scheduled</span></div>" : "")
-          + "<div><span class='sl-key'>Est. use by " + deliveryDateShort + ":</span><span class='sl-val orange'>-" + stop.consumption.toLocaleString() + " G</span></div>"
-          + "<div><span class='sl-key'>After this delivery:</span><span class='sl-val green'>~" + stop.projectedAfter.toLocaleString() + " G (" + stop.projectedAfterPct + "% full)</span></div>"
+          + "<div><span class='sl-key'>Est. use by " + loadDateShrt + ":</span><span class='sl-val orange'>-" + consumption.toLocaleString() + " G</span></div>"
+          + "<div><span class='sl-key'>After this delivery:</span><span class='sl-val green'>~" + projAfter.toLocaleString() + " G (" + projAfterPct + "% full)</span></div>"
           + "</div>";
 
         if (pendingG > 0) {
-          html += "<div class='stop-order-note'>&#9432; A delivery of " + pendingG.toLocaleString() + " G is already on order. This recommendation adds " + stop.allocated.toLocaleString() + " G on top of that existing order. Confirm with your vendor before placing.</div>";
+          html += "<div class='stop-order-note'>&#9432; A delivery of " + pendingG.toLocaleString() + " G is already on order. This adds " + stop.allocated.toLocaleString() + " G on top. Confirm with vendor before placing.</div>";
         }
 
         html += "</div>";
@@ -573,34 +625,31 @@ async function generate() {
   allTanks.forEach(t => {
     if (!isFuel(t.fuelType)) return;
 
-    const result = get3DayConsumption(t.shiftData, t.delivHistory);
-    if (!result) { t.consumption = 0; t.minPeriods = 0; t.usedFallback = true; return; }
+    const result = getConsumptionEstimate(t.shiftData, t.delivHistory);
+    if (!result) { t.consumption3 = 0; t.consumption4 = 0; t.minPeriods = 0; t.usedFallback = true; return; }
 
-    t.consumption  = result.consumption;
+    t.consumption3 = result.consumption3;
+    t.consumption4 = result.consumption4;
     t.minPeriods   = result.minPeriods;
     t.usedFallback = result.usedFallback;
 
-    // Pending gallons from existing orders
     const pendingG = t.orders.reduce((s, o) => s + (o.gallons || 0), 0);
+    const target   = Math.round(t.capacity * FILL_TARGET);
+    const cap      = getDeliveryCap(t.fuelType);
 
-    // Projected volume after 3 days (before new delivery)
-    const projVol = Math.max(0, t.currentVol + pendingG - t.consumption);
+    // Day 4 (default delivery)
+    const projVol3     = Math.max(0, t.currentVol + pendingG - t.consumption3);
+    t.projectedUllage  = Math.min(round100(Math.max(0, target - projVol3)), cap);
+    t.projectedVol     = projVol3;
 
-    // Target: 80% of physical capacity
-    const target = Math.round(t.capacity * FILL_TARGET);
+    // Day 5 (delayed delivery)
+    const projVol4     = Math.max(0, t.currentVol + pendingG - t.consumption4);
+    t.projectedUllage5 = Math.min(round100(Math.max(0, target - projVol4)), cap);
+    t.projectedVol5    = projVol4;
 
-    // How much can we add? (ullage to 80% target)
-    const rawUllage = Math.max(0, target - projVol);
-
-    // Round to 100G and fit within delivery cap
-    const cap          = getDeliveryCap(t.fuelType);
-    const projUllage   = Math.min(round100(rawUllage), cap);
-
-    t.projectedUllage  = projUllage;
-    t.projectedVol     = projVol;
-
-    // What it looks like after this new delivery
-    const projAfter    = Math.min(projVol + projUllage, t.capacity);
+    // For display — will be updated if load is delayed
+    t.consumption      = t.consumption3;
+    const projAfter    = Math.min(projVol3 + t.projectedUllage, t.capacity);
     t.projectedAfter    = Math.round(projAfter);
     t.projectedAfterPct = Math.round((projAfter / t.capacity) * 100);
   });
