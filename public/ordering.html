@@ -25,40 +25,45 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 
 .content { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
-/* Progress */
 .progress-wrap { text-align: center; padding: 60px 20px; }
 .progress-wrap h2 { font-size: 16px; color: #03a9f4; margin-bottom: 16px; }
 .progress-bar-outer { background: #0f3460; border-radius: 8px; height: 8px; max-width: 400px; margin: 0 auto 12px; }
 .progress-bar-inner { background: #03a9f4; height: 8px; border-radius: 8px; transition: width 0.3s; }
 .progress-status { font-size: 12px; color: #7a9bbf; }
 
-/* Intro state */
 .intro { text-align: center; padding: 80px 20px; }
 .intro h2 { font-size: 20px; color: #fff; margin-bottom: 12px; }
 .intro p { font-size: 13px; color: #7a9bbf; max-width: 500px; margin: 0 auto 24px; line-height: 1.6; }
 
-/* Forecast date banner */
 .forecast-banner {
   background: #0f3460; border: 1px solid #324a5f; border-radius: 8px;
   padding: 10px 16px; margin-bottom: 20px;
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
 }
-.forecast-banner .fb-label { font-size: 11px; color: #7a9bbf; text-transform: uppercase; letter-spacing: 0.5px; }
-.forecast-banner .fb-val { font-size: 13px; color: #fff; font-weight: bold; }
-.forecast-banner .fb-note { font-size: 11px; color: #7a9bbf; margin-left: auto; }
+.fb-label { font-size: 11px; color: #7a9bbf; text-transform: uppercase; letter-spacing: 0.5px; }
+.fb-val { font-size: 13px; color: #fff; font-weight: bold; margin-top: 2px; }
+.fb-note { font-size: 11px; color: #4a6a8a; margin-left: auto; }
 
-/* Load cards */
+/* Urgent alert banner */
+.urgent-banner {
+  background: #3d0000; border: 1px solid #f44336; border-radius: 8px;
+  padding: 12px 16px; margin-bottom: 16px;
+}
+.urgent-banner-hdr { font-size: 13px; font-weight: bold; color: #f44336; margin-bottom: 8px; }
+.urgent-item { font-size: 12px; color: #ffcdd2; padding: 4px 0; border-bottom: 1px solid #5a1a1a; }
+.urgent-item:last-child { border-bottom: none; }
+.urgent-item strong { color: #fff; }
+
 .section-hdr {
   font-size: 13px; font-weight: bold; color: #03a9f4;
   text-transform: uppercase; letter-spacing: 0.5px;
   margin: 24px 0 12px; padding-bottom: 6px;
   border-bottom: 1px solid #253a4f;
 }
+
 .load-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 14px; margin-bottom: 20px; }
 
-.load-card {
-  background: #16213e; border: 1px solid #324a5f; border-radius: 10px; overflow: hidden;
-}
+.load-card { background: #16213e; border: 1px solid #324a5f; border-radius: 10px; overflow: hidden; }
 .load-card-hdr {
   background: #0d2d58; padding: 10px 14px;
   display: flex; justify-content: space-between; align-items: center;
@@ -66,62 +71,45 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 }
 .load-title { font-size: 13px; font-weight: bold; color: #fff; }
 .load-total { font-size: 12px; color: #03a9f4; font-weight: bold; }
-.bulk-badge {
-  font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px;
-  background: #1b5e20; color: #a5d6a7;
-}
-.tankwagon-badge {
-  font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px;
-  background: #7e3d00; color: #ffcc80;
-}
+.bulk-badge { font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #1b5e20; color: #a5d6a7; }
+.tankwagon-badge { font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #7e3d00; color: #ffcc80; }
 
 .load-stop { padding: 12px 14px; border-bottom: 1px solid #1a2a3f; }
 .load-stop:last-child { border-bottom: none; }
-.stop-site { font-size: 11px; font-weight: bold; color: #03a9f4; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
+.stop-site { font-size: 11px; font-weight: bold; color: #03a9f4; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
 .stop-tank-name { font-size: 13px; font-weight: bold; color: #fff; margin-bottom: 4px; }
 .stop-amount { font-size: 20px; font-weight: bold; color: #47C13C; margin-bottom: 6px; }
-.stop-lines { font-size: 11px; color: #7a9bbf; line-height: 1.9; }
-.stop-lines .sl-key { color: #8ab0d0; display: inline-block; width: 140px; }
-.stop-lines .sl-val { color: #e0e0e0; }
-.stop-lines .sl-val.green { color: #47C13C; }
-.stop-lines .sl-val.orange { color: #ff9800; }
-.stop-lines .sl-val.red { color: #f44336; }
-.stop-order-note {
-  margin-top: 8px; padding: 6px 10px;
-  background: rgba(255,152,0,0.1); border-left: 3px solid #ff9800;
-  border-radius: 0 4px 4px 0; font-size: 11px; color: #ffcc80; line-height: 1.6;
-}
+.stop-lines { font-size: 11px; color: #7a9bbf; line-height: 2; }
+.sl-key { color: #8ab0d0; display: inline-block; width: 150px; }
+.sl-val { color: #e0e0e0; }
+.sl-val.green { color: #47C13C; }
+.sl-val.orange { color: #ff9800; }
 .confidence-warn {
   display: inline-block; font-size: 9px; color: #ff9800;
   background: rgba(255,152,0,0.15); border: 1px solid #ff9800;
   border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
 }
-
-/* Non-fuel alerts */
-.alert-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; margin-bottom: 20px; }
-.alert-card {
-  background: #2d1f00; border: 1px solid #7e3d00; border-radius: 8px;
-  padding: 12px 14px;
+.stop-order-note {
+  margin-top: 8px; padding: 6px 10px;
+  background: rgba(255,152,0,0.1); border-left: 3px solid #ff9800;
+  border-radius: 0 4px 4px 0; font-size: 11px; color: #ffcc80; line-height: 1.6;
 }
+
+.alert-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.alert-card { background: #2d1f00; border: 1px solid #7e3d00; border-radius: 8px; padding: 12px 14px; }
 .alert-card-name { font-size: 13px; font-weight: bold; color: #ffcc80; margin-bottom: 4px; }
 .alert-card-site { font-size: 11px; color: #b0b0b0; margin-bottom: 8px; }
 .alert-card-level { font-size: 20px; font-weight: bold; color: #f44336; }
 .alert-card-pct { font-size: 12px; color: #7a9bbf; margin-top: 2px; }
 
-/* No results */
 .no-results { text-align: center; padding: 40px; font-size: 13px; color: #7a9bbf; }
 
-/* Copy bar */
 .copy-bar-bottom {
   position: sticky; bottom: 0; background: #0a1628;
   border-top: 1px solid #324a5f; padding: 10px 20px;
   display: flex; align-items: center; gap: 12px;
 }
-.copy-btn {
-  background: #0f3460; color: #b0d0f0;
-  border: 1px solid #324a5f; padding: 6px 16px;
-  border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s;
-}
+.copy-btn { background: #0f3460; color: #b0d0f0; border: 1px solid #324a5f; padding: 6px 16px; border-radius: 6px; font-size: 12px; cursor: pointer; }
 .copy-btn:hover { background: #1f3b73; border-color: #03a9f4; color: #fff; }
 .copy-confirm { font-size: 12px; color: #47C13C; opacity: 0; transition: opacity 0.3s; }
 .copy-confirm.show { opacity: 1; }
@@ -133,7 +121,7 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 <div class="top-bar">
   <div>
     <h1>&#9874; COR Fleet — Fuel Ordering Forecast</h1>
-    <div class="top-bar-sub">3-day projected delivery recommendations &nbsp;·&nbsp; Token-secured</div>
+    <div class="top-bar-sub">3-day delivery recommendations &nbsp;·&nbsp; Run daily for best results</div>
   </div>
   <button id="generate-btn">&#9654; Generate Forecast</button>
 </div>
@@ -141,7 +129,7 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 <div class="content" id="content">
   <div class="intro">
     <h2>3-Day Ordering Forecast</h2>
-    <p>This tool estimates fuel needs over the next 3 days based on each tank's average daily consumption and current level. Click Generate Forecast to begin — this will take 15–30 seconds while data is collected from all 7 sites.</p>
+    <p>Estimates fuel needs based on each tank's average daily usage. Recommends delivery quantities targeting 80% fill, grouped into loads to hit bulk pricing where possible. Run daily — each day's forecast captures the next window.</p>
     <button id="generate-btn-2" style="background:#03a9f4;color:#000;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:8px">&#9654; Generate Forecast</button>
   </div>
 </div>
@@ -155,82 +143,76 @@ body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-hei
 <script>
 const DASH_TOKEN   = new URLSearchParams(window.location.search).get('token') || '';
 const FLAGS_URL    = '/api/flags';
-const SHIFT_TTL    = 10 * 60 * 1000;
 const COMPARTMENTS = [2500, 2500, 1700, 1500, 1000];
-const BULK_MIN      = 6000;
-const FILL_TARGET   = 0.80;
-const MIN_DELIVERY  = 500;
-const SAFETY_FLOOR  = 1000;  // Never delay if tank drops below this
-const NON_FUEL_ALERT_PCT = 25;
+const BULK_MIN     = 6000;
+const FILL_TARGET  = 0.80;
+const MIN_DELIVERY = 500;
+const SAFETY_FLOOR = 1000;
+const NON_FUEL_PCT = 25;
 
 const SITES = [
-  { name: "Central Operations FMO",        addr: "2540 Westinghouse Blvd", url: "http://63.46.75.214:10001", idx: 0 },
+  { name: "Central Operations FMO",        addr: "2540 Westinghouse Blvd", url: "http://63.46.75.214:10001",  idx: 0 },
   { name: "Northeast Remote Ops FMO",       addr: "7702 Burwell St",        url: "http://166.146.80.90:10001", idx: 1 },
-  { name: "Heavy Equipment Shop FMO",       addr: "4120 New Bern Ave",       url: "http://63.46.75.226:10001", idx: 2 },
-  { name: "Public Utilities Field Ops RW",  addr: "3304 Lake Woodard Dr",   url: "http://63.46.75.230:10001", idx: 3 },
-  { name: "Wilders Grove SWS",              addr: "610 Beacon Lake Dr",     url: "http://63.46.75.218:10001", idx: 4 },
-  { name: "Marsh Creek PRCR",              addr: "4225 Daly Rd",            url: "http://63.46.75.228:10001", idx: 5 },
-  { name: "Neuse River NRRF RW",           addr: "8500 Battle Bridge Rd",   url: "http://63.46.75.227:10001", idx: 6 },
+  { name: "Heavy Equipment Shop FMO",       addr: "4120 New Bern Ave",      url: "http://63.46.75.226:10001",  idx: 2 },
+  { name: "Public Utilities Field Ops RW",  addr: "3304 Lake Woodard Dr",   url: "http://63.46.75.230:10001",  idx: 3 },
+  { name: "Wilders Grove SWS",              addr: "610 Beacon Lake Dr",     url: "http://63.46.75.218:10001",  idx: 4 },
+  { name: "Marsh Creek PRCR",              addr: "4225 Daly Rd",            url: "http://63.46.75.228:10001",  idx: 5 },
+  { name: "Neuse River NRRF RW",           addr: "8500 Battle Bridge Rd",   url: "http://63.46.75.227:10001",  idx: 6 },
 ];
 
-const TANK_OVERRIDES = {
-  "http://63.46.75.226:10001|2": { isWasteOil: true, highAlertPct: 80, sortLast: true }
-};
-
-const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const WASTE_TANKS = { "http://63.46.75.226:10001|2": true };
+const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function isDiesel(f) { const n=(f||"").toLowerCase(); return n.includes("diesel")||n.includes("b20")||n.includes("biodiesel"); }
 function isGas(f)    { const n=(f||"").toLowerCase(); return n.includes("unleaded")||n.includes("e10")||n.includes("e85")||n.includes("flex"); }
-function isFuel(f)   { return isDiesel(f) || isGas(f); }
-
+function isFuel(f)   { return isDiesel(f)||isGas(f); }
 function getDeliveryCap(f) { return isDiesel(f) ? 8500 : 7500; }
-
-function round100(n) { return Math.round(n / 100) * 100; }
+function round100(n) { return Math.round(n/100)*100; }
+function normaliseFuel(f) {
+  if (isDiesel(f)) return "On-road Diesel";
+  return f;
+}
 
 function allocate(ullage, cap) {
   const space = Math.min(ullage, cap);
   if (space < MIN_DELIVERY) return 0;
   let total = 0;
-  for (const c of COMPARTMENTS) { if (total + c <= space) total += c; }
-  // If no full compartment fits but tank can accept 500G+, deliver what fits rounded to 100G
+  for (const c of COMPARTMENTS) { if (total+c <= space) total += c; }
   if (total === 0 && space >= MIN_DELIVERY) return round100(space);
   return total;
 }
 
-function normaliseFuelType(name) {
-  const n = (name||"").toLowerCase();
-  if (n.includes("diesel")||n.includes("b20")||n.includes("biodiesel")) return "On-road Diesel";
-  return name;
+function fmtDate(d, style) {
+  if (style === 'short') return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 }
 
-// ── Data fetching ─────────────────────────────────────────────────────────
-
+// ── Data ──────────────────────────────────────────────────────────────────
 let flagCache = {};
 
 async function loadFlags() {
   try {
-    const r = await fetch(FLAGS_URL + "?_=" + Date.now(), { cache: "no-store" });
-    if (r.ok) { const d = await r.json(); if (d && !d.error) flagCache = d; }
-  } catch(e) {}
+    const r = await fetch(FLAGS_URL+'?_='+Date.now(),{cache:'no-store'});
+    if (r.ok) { const d=await r.json(); if(d&&!d.error) flagCache=d; }
+  } catch(e){}
 }
 
 function getOrders(siteUrl, tankId) {
-  const entry = flagCache[siteUrl + "|" + String(tankId)];
-  if (!entry) return [];
-  if (Array.isArray(entry.orders)) return entry.orders;
-  return entry.flagDate ? [{ flagDate: entry.flagDate, gallons: entry.gallons || null }] : [];
+  const e = flagCache[siteUrl+'|'+String(tankId)];
+  if (!e) return [];
+  if (Array.isArray(e.orders)) return e.orders;
+  return e.flagDate ? [{flagDate:e.flagDate,gallons:e.gallons||null}] : [];
 }
 
 async function fetchTanks(onProgress) {
-  const token = DASH_TOKEN ? '&token=' + encodeURIComponent(DASH_TOKEN) : '';
-  const results = [];
-  await Promise.all(SITES.map(async (site) => {
+  const token = DASH_TOKEN ? '&token='+encodeURIComponent(DASH_TOKEN) : '';
+  const results = new Array(SITES.length);
+  await Promise.all(SITES.map(async site => {
     try {
-      const r = await fetch('/api/tanks?site=' + site.idx + token, { cache: "no-store" });
-      const d = await r.json();
-      results[site.idx] = { site, raw: d };
+      const r = await fetch('/api/tanks?site='+site.idx+token,{cache:'no-store'});
+      results[site.idx] = { site, raw: await r.json() };
     } catch(e) {
-      results[site.idx] = { site, raw: { error: e.message } };
+      results[site.idx] = { site, raw:{error:e.message} };
     }
     onProgress();
   }));
@@ -238,84 +220,85 @@ async function fetchTanks(onProgress) {
 }
 
 async function fetchShift(siteIdx, tankId) {
-  const token = DASH_TOKEN ? '&token=' + encodeURIComponent(DASH_TOKEN) : '';
-  const r = await fetch('/api/shift?site=' + siteIdx + '&tank=' + tankId + token, { cache: "no-store" });
-  if (!r.ok) throw new Error('shift ' + r.status);
+  const token = DASH_TOKEN ? '&token='+encodeURIComponent(DASH_TOKEN) : '';
+  const r = await fetch('/api/shift?site='+siteIdx+'&tank='+tankId+token,{cache:'no-store'});
+  if (!r.ok) throw new Error('shift '+r.status);
   const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'shift failed');
-  return j.data; // { Mon: {avg, periods}, ... }
+  if (!j.ok) throw new Error(j.error||'shift failed');
+  return j.data;
 }
 
-// ── Projection logic ──────────────────────────────────────────────────────
-
-function getConsumptionEstimate(shiftData, delivHistory) {
-  const today = new Date();
-  let total3 = 0, total4 = 0;
-  let minPeriods = 99;
-  let usedFallback = false;
-
+// ── Consumption estimate ──────────────────────────────────────────────────
+// Returns daily avg and per-day array for next N days
+function getDailyRates(shiftData, delivHistory) {
   if (shiftData) {
-    let hasData = false;
-    const todayName  = DAY_NAMES[today.getDay()];
-    const hoursLeft  = (24 - today.getHours()) / 24;
-    const todayEntry = shiftData[todayName];
-    if (todayEntry && todayEntry.avg > 0) {
-      const todayRem = todayEntry.avg * hoursLeft;
-      total3 += todayRem; total4 += todayRem;
-      minPeriods = Math.min(minPeriods, todayEntry.periods || 1);
-      hasData = true;
-    }
-    for (let d = 1; d <= 4; d++) {
-      const dayName = DAY_NAMES[(today.getDay() + d) % 7];
-      const entry   = shiftData[dayName];
+    const today = new Date();
+    // Build per-day rates for next 4 days
+    const rates = [];
+    let minPeriods = 99;
+    for (let d = 0; d <= 3; d++) {
+      const name  = DAY_NAMES[(today.getDay()+d)%7];
+      const entry = shiftData[name];
       if (entry && entry.avg > 0) {
-        if (d <= 3) total3 += entry.avg;
-        total4 += entry.avg;
-        minPeriods = Math.min(minPeriods, entry.periods || 1);
-        hasData = true;
+        rates.push(entry.avg);
+        minPeriods = Math.min(minPeriods, entry.periods||1);
+      } else {
+        rates.push(0);
       }
     }
-    if (hasData) return { consumption3: Math.round(total3), consumption4: Math.round(total4), minPeriods, usedFallback: false };
+    const hasData = rates.some(r=>r>0);
+    if (hasData) return { rates, minPeriods, usedFallback: false };
   }
 
-  // Fallback: inter-delivery rate
+  // Fallback: inter-delivery average
   if (delivHistory && delivHistory.length >= 2) {
-    const rates = [];
-    for (let i = 0; i < Math.min(delivHistory.length - 1, 4); i++) {
-      const newer = delivHistory[i], older = delivHistory[i+1];
-      const days  = (new Date(newer.dateOnly) - new Date(older.dateOnly)) / 86400000;
-      if (days <= 0) continue;
-      const consumed = (older.endGrossVol || 0) - (newer.startGrossVol || 0);
-      if (consumed > 0) rates.push(consumed / days);
+    const rs = [];
+    for (let i=0; i<Math.min(delivHistory.length-1,4); i++) {
+      const a=delivHistory[i], b=delivHistory[i+1];
+      const days=(new Date(a.dateOnly)-new Date(b.dateOnly))/86400000;
+      if (days<=0) continue;
+      const used=(b.endGrossVol||0)-(a.startGrossVol||0);
+      if (used>0) rs.push(used/days);
     }
-    if (rates.length > 0) {
-      const avg = rates.reduce((a,b)=>a+b,0) / rates.length;
-      return { consumption3: Math.round(avg * 3.5), consumption4: Math.round(avg * 4.5), minPeriods: 1, usedFallback: true };
+    if (rs.length>0) {
+      const avg = rs.reduce((a,b)=>a+b,0)/rs.length;
+      return { rates:[avg,avg,avg,avg], minPeriods:1, usedFallback:true };
     }
   }
-
   return null;
 }
 
-// ── Build load plans ──────────────────────────────────────────────────────
+// ── Urgent day detection ──────────────────────────────────────────────────
+// Returns the earliest day (1-3) where tank drops below SAFETY_FLOOR, or null
+function urgentDay(currentVol, pendingG, rates) {
+  let vol = currentVol + pendingG;
+  const hoursLeft = (24 - new Date().getHours()) / 24;
+  for (let d = 0; d <= 2; d++) {
+    vol -= (d === 0 ? rates[0] * hoursLeft : rates[d]);
+    if (vol < SAFETY_FLOOR) return d + 1; // day 1 = tomorrow
+  }
+  return null;
+}
 
+// ── Load plan ─────────────────────────────────────────────────────────────
 function buildLoadPlans(tanks) {
-  const diesel = tanks.filter(t => isDiesel(t.fuelType));
-  const gas    = tanks.filter(t => isGas(t.fuelType));
+  const diesel = tanks.filter(t=>isDiesel(t.fuelType));
+  const gas    = tanks.filter(t=>isGas(t.fuelType));
   const loads  = [];
 
-  [{ family: 'diesel', items: diesel, cap: 8500 },
-   { family: 'gas',    items: gas,    cap: 7500 }].forEach(({ family, items, cap }) => {
-    // Sort: prefer ≥3000G current vol first, then by projected ullage desc
-    items.sort((a, b) => {
-      const aLow = a.currentVol < 3000 ? 1 : 0;
-      const bLow = b.currentVol < 3000 ? 1 : 0;
-      if (aLow !== bLow) return aLow - bLow;
-      return b.projectedUllage - a.projectedUllage;
+  [{ family:'diesel', items:diesel, cap:8500 },
+   { family:'gas',    items:gas,    cap:7500 }].forEach(({family, items, cap}) => {
+    items.sort((a,b) => {
+      // Urgent tanks first
+      if (a.urgent && !b.urgent) return -1;
+      if (b.urgent && !a.urgent) return  1;
+      // Prefer ≥3000G, then by ullage desc
+      const aLow = a.currentVol<3000?1:0, bLow = b.currentVol<3000?1:0;
+      if (aLow!==bLow) return aLow-bLow;
+      return b.projectedUllage-a.projectedUllage;
     });
 
     const used = new Set();
-
     items.forEach((primary, pi) => {
       if (used.has(pi)) return;
       let remaining = cap;
@@ -323,66 +306,27 @@ function buildLoadPlans(tanks) {
 
       const pa = allocate(primary.projectedUllage, remaining);
       if (pa > 0) {
-        stops.push({ ...primary, allocated: pa, delayed: false });
+        stops.push({...primary, allocated:pa});
         remaining -= pa;
         used.add(pi);
       }
+      if (stops.length===0) return;
 
-      if (stops.length === 0) return;
-      const currentTotal = stops.reduce((s,x) => s + x.allocated, 0);
-
-      // Try second stop (Day 4) to hit bulk min
-      let secondFound = false;
-      if (currentTotal < BULK_MIN && remaining >= MIN_DELIVERY) {
-        for (let si = 0; si < items.length; si++) {
+      // Try second stop
+      if (stops.reduce((s,x)=>s+x.allocated,0) < BULK_MIN && remaining >= MIN_DELIVERY) {
+        for (let si=0; si<items.length; si++) {
           if (used.has(si)) continue;
-          const secondary = items[si];
-          const sa = allocate(secondary.projectedUllage, remaining);
+          const sa = allocate(items[si].projectedUllage, remaining);
           if (sa < MIN_DELIVERY) continue;
-          stops.push({ ...secondary, allocated: sa, delayed: false });
+          stops.push({...items[si], allocated:sa});
           remaining -= sa;
           used.add(si);
-          secondFound = true;
           break;
         }
       }
 
-      const afterSecond = stops.reduce((s,x) => s + x.allocated, 0);
-
-      // Still below bulk — try delaying the whole load one day (Day 5)
-      // Only if: no tank would drop below SAFETY_FLOOR by Day 5
-      if (afterSecond < BULK_MIN) {
-        // Check if any stop tank is unsafe to delay
-        const anyUnsafe = stops.some(s => {
-          const volAfter4Days = s.currentVol - (s.consumption4 || s.consumption3 || 0);
-          return volAfter4Days < SAFETY_FLOOR;
-        });
-
-        if (!anyUnsafe) {
-          // Try pairing with a tank that becomes available on Day 5
-          for (let si = 0; si < items.length; si++) {
-            if (used.has(si)) continue;
-            const candidate = items[si];
-            // Would dropping below safety if we wait?
-            const candVolAfter4 = candidate.currentVol - (candidate.consumption4 || candidate.consumption3 || 0);
-            if (candVolAfter4 < SAFETY_FLOOR) continue;
-            // Use Day 5 ullage for candidate
-            const candUllage5 = candidate.projectedUllage5 || candidate.projectedUllage;
-            const sa = allocate(candUllage5, remaining);
-            if (sa < MIN_DELIVERY) continue;
-            // Mark all stops as delayed and add candidate
-            stops.forEach(s => s.delayed = true);
-            stops.push({ ...candidate, allocated: sa, delayed: true });
-            remaining -= sa;
-            used.add(si);
-            break;
-          }
-        }
-      }
-
-      const total = stops.reduce((s,x) => s + x.allocated, 0);
-      const anyDelayed = stops.some(s => s.delayed);
-      loads.push({ family, cap, stops, total, isBulk: total >= BULK_MIN, delayed: anyDelayed });
+      const total = stops.reduce((s,x)=>s+x.allocated,0);
+      loads.push({ family, cap, stops, total, isBulk: total>=BULK_MIN });
     });
   });
 
@@ -390,283 +334,261 @@ function buildLoadPlans(tanks) {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
+let _plainText = '';
 
-let _lastPlainText = '';
+function renderResults(allTanks) {
+  const today = new Date();
+  const day4  = new Date(today); day4.setDate(today.getDate()+4);
+  const now   = today.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 
-function renderResults(tankData) {
-  const day4 = new Date(); day4.setDate(day4.getDate() + 4);
-  const day5 = new Date(); day5.setDate(day5.getDate() + 5);
-  const fmtDate = d => d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const fmtShort = d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const now = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const fuelTanks    = allTanks.filter(t => isFuel(t.fuelType) && t.projectedUllage >= MIN_DELIVERY);
+  const nonFuelAlert = allTanks.filter(t => !isFuel(t.fuelType) && !t.isWasteOil && t.pct <= NON_FUEL_PCT);
+  const urgentTanks  = fuelTanks.filter(t => t.urgent);
+  const loads        = buildLoadPlans(fuelTanks);
 
-  const fuelTanks    = tankData.filter(t => isFuel(t.fuelType) && t.projectedUllage >= MIN_DELIVERY);
-  const nonFuelAlert = tankData.filter(t => !isFuel(t.fuelType) && !t.isWasteOil && t.pct <= NON_FUEL_ALERT_PCT);
-
-  const loads = buildLoadPlans(fuelTanks);
-
-  let html = '';
+  let html  = '';
   let plain = 'COR Fleet Fuel Order for ' + fmtDate(day4) + '\n\n';
 
   // Banner
   html += "<div class='forecast-banner'>"
-    + "<div><div class='fb-label'>Default delivery date</div><div class='fb-val'>" + fmtDate(day4) + " &nbsp;&mdash;&nbsp; 7:00 AM</div></div>"
-    + "<div><div class='fb-label'>Fill target</div><div class='fb-val'>80% of tank capacity</div></div>"
+    + "<div><div class='fb-label'>Delivery date</div><div class='fb-val'>" + fmtDate(day4) + " &nbsp;&mdash;&nbsp; 7:00 AM</div></div>"
+    + "<div><div class='fb-label'>Fill target</div><div class='fb-val'>80% of capacity</div></div>"
     + "<div><div class='fb-label'>Min delivery</div><div class='fb-val'>500 G</div></div>"
     + "<div class='fb-note'>Generated " + now + "</div>"
     + "</div>";
 
-  // ── Fuel loads ────────────────────────────────────────────────────────
+  // Urgent alerts
+  if (urgentTanks.length > 0) {
+    html += "<div class='urgent-banner'><div class='urgent-banner-hdr'>&#9888; URGENT — Tanks below 1,000 G before delivery day</div>";
+    plain += '*** URGENT — TANKS NEED EARLIER DELIVERY ***\n';
+    urgentTanks.forEach(t => {
+      const delivDate = new Date(today);
+      delivDate.setDate(today.getDate() + t.urgentDay + 1);
+      const dispFuel = normaliseFuel(t.fuelType);
+      html += "<div class='urgent-item'>"
+        + "<strong>" + dispFuel + " — Tank " + t.tankId + " @ " + t.siteName + "</strong> &mdash; "
+        + "Projected to drop below 1,000 G by " + fmtDate(new Date(today.setDate(today.getDate()+t.urgentDay)),'short')
+        + " &mdash; Recommend delivery by <strong>" + fmtDate(delivDate,'short') + "</strong>"
+        + "</div>";
+      plain += '  ' + dispFuel + ' Tank ' + t.tankId + ' @ ' + t.siteName + ' — Deliver by ' + fmtDate(delivDate,'short') + '\n';
+    });
+    html   += "</div>";
+    plain  += '\n';
+    // Reset today after mutation above
+    today.setTime(new Date().getTime());
+  }
+
+  // Fuel loads
   if (loads.length > 0) {
-    html += "<div class='section-hdr'>&#9654; Recommended Fuel Loads</div>";
-    html += "<div class='load-grid'>";
-    plain += 'RECOMMENDED FUEL LOADS\n' + '-'.repeat(40) + '\n\n';
+    html += "<div class='section-hdr'>&#9654; Recommended Fuel Loads</div><div class='load-grid'>";
+    plain += 'DELIVERY DATE: ' + fmtDate(day4) + '\n\n';
 
     loads.forEach((load, li) => {
-      const loadDate     = load.delayed ? day5 : day4;
-      const loadDateStr  = fmtDate(loadDate);
-      const loadDateShrt = fmtShort(loadDate);
-      const badge   = load.isBulk
-        ? "<span class='bulk-badge'>BULK TRANSPORT &#10003;</span>"
-        : "<span class='tankwagon-badge'>TANK-WAGON &#9888;</span>";
-      const delayNote = load.delayed
-        ? "<span style='color:#ffe082;font-size:11px;margin-left:8px'>&#128337; Delayed +1 day to reach bulk minimum</span>"
-        : "";
-      const loadLbl = 'Load ' + (li + 1) + ' \u2014 ' + (load.family === 'diesel' ? 'DIESEL' : 'GASOLINE');
+      const badge = load.isBulk
+        ? "<span class='bulk-badge'>BULK &#10003;</span>"
+        : "<span class='tankwagon-badge'>TANK-WAGON</span>";
 
-      html += "<div class='load-card'>"
-        + "<div class='load-card-hdr'>"
-        + "<div>"
-        + "<div class='load-title'>" + loadLbl + "</div>"
-        + "<div style='font-size:11px;color:#ffe082;margin-top:2px'>&#128197; " + loadDateStr + " &nbsp;7:00 AM" + (load.delayed ? " &nbsp;&#8593; delayed for bulk" : "") + "</div>"
-        + "</div>"
+      html += "<div class='load-card'><div class='load-card-hdr'>"
+        + "<div class='load-title'>Load " + (li+1) + " &mdash; " + (load.family==='diesel'?'DIESEL':'GASOLINE') + "</div>"
         + "<div style='display:flex;align-items:center;gap:8px'>"
-        + "<span class='load-total'>" + load.total.toLocaleString() + " G total</span>"
-        + badge
+        + "<span class='load-total'>" + load.total.toLocaleString() + " G</span>" + badge
         + "</div></div>";
 
-      plain += 'LOAD ' + (li + 1) + ' - ' + (load.family === 'diesel' ? 'DIESEL' : 'GASOLINE') + ' + ' + load.total.toLocaleString() + ' G';
-      plain += (load.delayed ? ' (delivery ' + loadDateShrt + ')' : '') + '\n';
+      plain += 'LOAD ' + (li+1) + ' - ' + (load.family==='diesel'?'DIESEL':'GASOLINE') + ' + ' + load.total.toLocaleString() + ' G\n';
 
-      load.stops.forEach((stop) => {
-        const orders    = stop.orders || [];
-        const pendingG  = orders.reduce((s,o)=>s+(o.gallons||0),0);
-        const displayFuel = normaliseFuelType(stop.fuelType);
-        const lowStock  = stop.currentVol < 3000;
-        const confWarn  = stop.usedFallback
-          ? "<span class='confidence-warn'>&#9888; est. from delivery history</span>"
-          : (stop.minPeriods < 2 ? "<span class='confidence-warn'>&#9888; limited shift data</span>" : "");
-
-        // Use Day 5 consumption if delayed
-        const consumption  = stop.delayed ? (stop.consumption4 || stop.consumption3) : stop.consumption3;
-        const projVol      = stop.delayed ? stop.projectedVol5 : stop.projectedVol;
-        const projAfter    = Math.min(projVol + stop.allocated, stop.capacity);
-        const projAfterPct = Math.round((projAfter / stop.capacity) * 100);
+      load.stops.forEach(stop => {
+        const pendingG   = stop.orders.reduce((s,o)=>s+(o.gallons||0),0);
+        const dispFuel   = normaliseFuel(stop.fuelType);
+        const lowStock   = stop.currentVol < 3000;
+        const confWarn   = stop.usedFallback
+          ? "<span class='confidence-warn'>&#9888; delivery history estimate</span>"
+          : stop.minPeriods < 2 ? "<span class='confidence-warn'>&#9888; limited data</span>" : "";
+        const urgWarn    = stop.urgent
+          ? "<span style='color:#f44336;font-size:10px;font-weight:bold'> &#9888; URGENT</span>" : "";
+        const projAfter  = Math.min(stop.projectedVol + stop.allocated, stop.capacity);
+        const pafPct     = Math.round((projAfter/stop.capacity)*100);
 
         html += "<div class='load-stop'>"
           + "<div class='stop-site'>" + stop.siteName + " &mdash; " + stop.siteAddr + "</div>"
-          + "<div class='stop-tank-name'>" + displayFuel + " &nbsp;&middot;&nbsp; Tank " + stop.tankId
-          + (lowStock ? " &nbsp;<span style='color:#ff9800;font-size:10px'>&#9888; Low stock</span>" : "")
-          + confWarn + "</div>"
+          + "<div class='stop-tank-name'>" + dispFuel + " &nbsp;&middot;&nbsp; Tank " + stop.tankId + urgWarn + confWarn
+          + (lowStock?" &nbsp;<span style='color:#ff9800;font-size:10px'>&#9888; Low stock</span>":"")
+          + "</div>"
           + "<div class='stop-amount'>Deliver " + stop.allocated.toLocaleString() + " G</div>"
           + "<div class='stop-lines'>"
-          + "<div><span class='sl-key'>Right now:</span><span class='sl-val'>" + stop.currentVol.toLocaleString() + " G (" + stop.currentPct + "% full)</span></div>"
-          + (pendingG > 0 ? "<div><span class='sl-key'>Order pending:</span><span class='sl-val green'>+" + pendingG.toLocaleString() + " G already scheduled</span></div>" : "")
-          + "<div><span class='sl-key'>Est. use by " + loadDateShrt + ":</span><span class='sl-val orange'>-" + consumption.toLocaleString() + " G</span></div>"
-          + "<div><span class='sl-key'>After this delivery:</span><span class='sl-val green'>~" + projAfter.toLocaleString() + " G (" + projAfterPct + "% full)</span></div>"
+          + "<div><span class='sl-key'>Right now:</span><span class='sl-val'>" + stop.currentVol.toLocaleString() + " G (" + stop.currentPct + "%)</span></div>"
+          + (pendingG>0?"<div><span class='sl-key'>Order pending:</span><span class='sl-val green'>+" + pendingG.toLocaleString() + " G</span></div>":"")
+          + "<div><span class='sl-key'>Est. 3-day use:</span><span class='sl-val orange'>&minus;" + stop.consumption.toLocaleString() + " G</span></div>"
+          + "<div><span class='sl-key'>After delivery:</span><span class='sl-val green'>~" + projAfter.toLocaleString() + " G (" + pafPct + "%)</span></div>"
           + "</div>";
 
         if (pendingG > 0) {
-          html += "<div class='stop-order-note'>&#9432; A delivery of " + pendingG.toLocaleString() + " G is already on order. This adds " + stop.allocated.toLocaleString() + " G on top. Confirm with vendor before placing.</div>";
+          html += "<div class='stop-order-note'>&#9432; " + pendingG.toLocaleString() + " G is already on order. This adds " + stop.allocated.toLocaleString() + " G on top — confirm with vendor before placing.</div>";
         }
 
         html += "</div>";
-
         plain += stop.siteName + ', ' + stop.siteAddr + '\n';
-        plain += '     + ' + stop.allocated.toLocaleString() + ' G for Tank ' + stop.tankId + ' (' + displayFuel + ' tank)\n';
+        plain += '     + ' + stop.allocated.toLocaleString() + ' G for Tank ' + stop.tankId + ' (' + dispFuel + ' tank)\n';
       });
 
-      html += "</div>";
+      html  += "</div>";
       plain += '\n';
     });
 
     html += "</div>";
   } else {
-    html += "<div class='no-results'>No fuel deliveries recommended for the next 3 days based on current levels and usage.</div>";
+    html  += "<div class='no-results'>No fuel deliveries recommended — all tanks are projected to remain above target levels.</div>";
     plain += 'No fuel deliveries recommended.\n\n';
   }
 
-  // ── Non-fuel alerts ───────────────────────────────────────────────────
+  // Non-fuel alerts
   if (nonFuelAlert.length > 0) {
-    html += "<div class='section-hdr'>&#9888; Non-Fuel Tanks Below 25%</div><div class='alert-grid'>";
-    plain += 'NON-FUEL ALERTS (below 25%)\n' + '-'.repeat(40) + '\n';
-
+    html  += "<div class='section-hdr'>&#9888; Non-Fuel Below 25%</div><div class='alert-grid'>";
+    plain += 'NON-FUEL REORDER ALERTS\n';
     nonFuelAlert.forEach(t => {
       html += "<div class='alert-card'>"
-        + "<div class='alert-card-name'>" + t.fuelType + " &mdash; Tank " + t.tankId + "</div>"
+        + "<div class='alert-card-name'>" + t.fuelType + " — Tank " + t.tankId + "</div>"
         + "<div class='alert-card-site'>" + t.siteName + ", " + t.siteAddr + "</div>"
         + "<div class='alert-card-level'>" + t.currentVol.toLocaleString() + " G</div>"
-        + "<div class='alert-card-pct'>" + t.pct + "% full &mdash; consider reorder</div>"
+        + "<div class='alert-card-pct'>" + t.pct + "% — consider reorder</div>"
         + "</div>";
       plain += '  ' + t.fuelType + ' Tank ' + t.tankId + ' @ ' + t.siteName + ': ' + t.currentVol.toLocaleString() + ' G (' + t.pct + '%)\n';
     });
-
-    html += "</div>";
+    html  += "</div>";
     plain += '\n';
   }
 
   document.getElementById("content").innerHTML = html;
   document.getElementById("copy-bar").style.display = "flex";
   document.getElementById("generated-at").textContent = "Generated " + now;
-  _lastPlainText = plain;
+  _plainText = plain;
 }
 
-// ── Main generate flow ────────────────────────────────────────────────────
-
+// ── Generate ──────────────────────────────────────────────────────────────
 async function generate() {
   if (!DASH_TOKEN) {
-    document.getElementById("content").innerHTML = "<div class='intro'><h2>Access Denied</h2><p>This page requires a valid token. Access via <strong>?token=CORfleet2026</strong></p></div>";
+    document.getElementById("content").innerHTML = "<div class='intro'><h2>Access Denied</h2><p>Access via <strong>?token=CORfleet2026</strong></p></div>";
     return;
   }
 
-  const btn  = document.getElementById("generate-btn");
-  const btn2 = document.getElementById("generate-btn-2");
+  const btn = document.getElementById("generate-btn");
   btn.disabled = true; btn.textContent = "Loading\u2026";
+  const btn2 = document.getElementById("generate-btn-2");
   if (btn2) btn2.disabled = true;
-
-  let sitesDone = 0, shiftDone = 0, totalShifts = 0;
 
   function showProgress(msg, pct) {
     document.getElementById("content").innerHTML =
-      "<div class='progress-wrap'>"
-      + "<h2>" + msg + "</h2>"
+      "<div class='progress-wrap'><h2>" + msg + "</h2>"
       + "<div class='progress-bar-outer'><div class='progress-bar-inner' style='width:" + pct + "%'></div></div>"
-      + "<div class='progress-status'>" + Math.round(pct) + "% complete</div>"
-      + "</div>";
+      + "<div class='progress-status'>" + Math.round(pct) + "%</div></div>";
   }
 
   showProgress("Connecting to all 7 sites\u2026", 5);
   await loadFlags();
 
-  // Fetch all tank data
+  let sitesDone = 0;
   const siteResults = await fetchTanks(() => {
     sitesDone++;
-    showProgress("Fetching tank levels\u2026 (" + sitesDone + "/7 sites)", 5 + (sitesDone / 7) * 30);
+    showProgress("Fetching tank levels\u2026 (" + sitesDone + "/7)", 5 + (sitesDone/7)*30);
   });
 
-  // Parse tank data
+  // Parse all tanks
   const allTanks = [];
-  for (const { site, raw } of siteResults) {
+  for (const { site, raw } of siteResults.filter(Boolean)) {
     if (!raw || raw.error || !raw.cgiData || !raw.cgiData.tankData) continue;
 
-    // Parse fuel types from invHtml
-    const fuelMap = {};
+    const fuelMap = {}, delivMap = {};
     if (raw.invHtml) {
       try {
         const m = raw.invHtml.match(/const tankData\s*=\s*(\[[\s\S]*?\])\s*;/);
-        if (m) { const arr = JSON.parse(m[1]); arr.forEach(t => { if (t.id != null && t.fuelType) fuelMap[t.id] = t.fuelType; }); }
-      } catch(e) {}
-    }
-
-    // Parse delivery history
-    const delivMap = {};
-    if (raw.invHtml) {
-      try {
-        const m = raw.invHtml.match(/const tankData\s*=\s*(\[[\s\S]*?\])\s*;/);
-        if (m) { const arr = JSON.parse(m[1]); arr.forEach(t => { if (t.id != null && t.deliveryData) delivMap[t.id] = t.deliveryData; }); }
+        if (m) {
+          const arr = JSON.parse(m[1]);
+          arr.forEach(t => {
+            if (t.id != null) {
+              if (t.fuelType) fuelMap[t.id] = t.fuelType;
+              if (t.deliveryData) delivMap[t.id] = t.deliveryData;
+            }
+          });
+        }
       } catch(e) {}
     }
 
     raw.cgiData.tankData.forEach(t => {
-      const override = TANK_OVERRIDES[site.url + "|" + t.tankNum];
-      if (override && override.isWasteOil) return;
-
-      const fuelType = fuelMap[t.tankNum] || t.fuelType || "Tank " + t.tankNum;
+      if (WASTE_TANKS[site.url+'|'+t.tankNum]) return;
+      const fuelType = fuelMap[t.tankNum] || t.fuelType || 'Tank '+t.tankNum;
       const capacity = t.capacity || 1;
       const vol      = Math.round(t.productVolume || t.grossVolume || 0);
-      const pct      = Math.round((vol / capacity) * 100 * 10) / 10;
-      const orders   = getOrders(site.url, t.tankNum);
-
+      const pct      = Math.round((vol/capacity)*100);
       allTanks.push({
-        siteIdx:     site.idx,
-        siteName:    site.name,
-        siteAddr:    site.addr,
-        siteUrl:     site.url,
-        tankId:      t.tankNum,
-        fuelType,
-        capacity,
-        currentVol:  vol,
-        currentPct:  Math.round(pct),
-        pct:         Math.round(pct),
-        isWasteOil:  false,
-        orders,
+        siteIdx: site.idx, siteName: site.name, siteAddr: site.addr, siteUrl: site.url,
+        tankId: t.tankNum, fuelType, capacity, currentVol: vol, currentPct: pct, pct,
+        isWasteOil: false, orders: getOrders(site.url, t.tankNum),
         delivHistory: delivMap[t.tankNum] || [],
-        shiftData:   null,
-        consumption: null,
-        minPeriods:  null,
-        usedFallback: false,
+        shiftData: null, rateData: null,
       });
-      totalShifts++;
     });
   }
 
-  // Fetch shift data for fuel tanks only
-  const fuelTankList = allTanks.filter(t => isFuel(t.fuelType));
-  let si = 0;
-  await Promise.all(fuelTankList.map(async (t) => {
-    try {
-      t.shiftData = await fetchShift(t.siteIdx, t.tankId);
-    } catch(e) { t.shiftData = null; }
-    si++;
-    showProgress("Fetching usage history\u2026 (" + si + "/" + fuelTankList.length + " tanks)", 35 + (si / fuelTankList.length) * 55);
+  // Fetch shift data for fuel tanks
+  const fuelList = allTanks.filter(t => isFuel(t.fuelType));
+  let shiftDone = 0;
+  await Promise.all(fuelList.map(async t => {
+    try { t.shiftData = await fetchShift(t.siteIdx, t.tankId); } catch(e) {}
+    shiftDone++;
+    showProgress("Fetching usage history\u2026 (" + shiftDone + "/" + fuelList.length + ")", 35 + (shiftDone/fuelList.length)*55);
   }));
 
   // Calculate projections
   allTanks.forEach(t => {
     if (!isFuel(t.fuelType)) return;
 
-    const result = getConsumptionEstimate(t.shiftData, t.delivHistory);
-    if (!result) { t.consumption3 = 0; t.consumption4 = 0; t.minPeriods = 0; t.usedFallback = true; return; }
+    const rateData = getDailyRates(t.shiftData, t.delivHistory);
+    if (!rateData) {
+      t.consumption = 0; t.projectedUllage = 0; t.projectedVol = t.currentVol;
+      t.minPeriods = 0; t.usedFallback = true; t.urgent = false; return;
+    }
 
-    t.consumption3 = result.consumption3;
-    t.consumption4 = result.consumption4;
-    t.minPeriods   = result.minPeriods;
-    t.usedFallback = result.usedFallback;
+    t.minPeriods   = rateData.minPeriods;
+    t.usedFallback = rateData.usedFallback;
 
-    const pendingG = t.orders.reduce((s, o) => s + (o.gallons || 0), 0);
-    const target   = Math.round(t.capacity * FILL_TARGET);
-    const cap      = getDeliveryCap(t.fuelType);
+    const hoursLeft = (24 - new Date().getHours()) / 24;
+    const pendingG  = t.orders.reduce((s,o)=>s+(o.gallons||0),0);
 
-    // Day 4 (default delivery)
-    const projVol3     = Math.max(0, t.currentVol + pendingG - t.consumption3);
-    t.projectedUllage  = Math.min(round100(Math.max(0, target - projVol3)), cap);
-    t.projectedVol     = projVol3;
+    // Total consumption from now through 7AM Day 4
+    const cons = Math.round(
+      rateData.rates[0] * hoursLeft +  // rest of today
+      rateData.rates[1] +               // day 1
+      rateData.rates[2] +               // day 2
+      rateData.rates[3]                 // day 3
+    );
+    t.consumption = cons;
 
-    // Day 5 (delayed delivery)
-    const projVol4     = Math.max(0, t.currentVol + pendingG - t.consumption4);
-    t.projectedUllage5 = Math.min(round100(Math.max(0, target - projVol4)), cap);
-    t.projectedVol5    = projVol4;
+    // Detect urgent: does tank drop below SAFETY_FLOOR before Day 4?
+    const urgDay = urgentDay(t.currentVol, pendingG, rateData.rates);
+    t.urgent    = urgDay !== null;
+    t.urgentDay = urgDay;
 
-    // For display — will be updated if load is delayed
-    t.consumption      = t.consumption3;
-    const projAfter    = Math.min(projVol3 + t.projectedUllage, t.capacity);
-    t.projectedAfter    = Math.round(projAfter);
-    t.projectedAfterPct = Math.round((projAfter / t.capacity) * 100);
+    // Projected volume at 7AM Day 4
+    const projVol = Math.max(0, t.currentVol + pendingG - cons);
+    t.projectedVol = projVol;
+
+    // How much can we fill to 80%?
+    const target    = Math.round(t.capacity * FILL_TARGET);
+    const rawUllage = Math.max(0, target - projVol);
+    const cap       = getDeliveryCap(t.fuelType);
+    t.projectedUllage = Math.min(round100(rawUllage), cap);
   });
 
-  showProgress("Building order recommendations\u2026", 95);
-  await new Promise(r => setTimeout(r, 200));
+  showProgress("Building recommendations\u2026", 97);
+  await new Promise(r => setTimeout(r, 150));
 
   renderResults(allTanks);
-
   btn.disabled = false; btn.textContent = "\u27f3 Regenerate";
 }
 
 document.getElementById("generate-btn").addEventListener("click", generate);
 document.getElementById("generate-btn-2")?.addEventListener("click", generate);
-
 document.getElementById("copy-btn")?.addEventListener("click", function() {
-  navigator.clipboard.writeText(_lastPlainText).then(() => {
+  navigator.clipboard.writeText(_plainText).then(() => {
     const el = document.getElementById("copy-confirm");
     el.textContent = "\u2713 Copied!"; el.classList.add("show");
     setTimeout(() => el.classList.remove("show"), 2500);
