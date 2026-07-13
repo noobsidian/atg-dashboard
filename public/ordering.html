@@ -159,7 +159,7 @@ const SHIFT_TTL    = 10 * 60 * 1000;
 const COMPARTMENTS = [2500, 2500, 1700, 1500, 1000];
 const BULK_MIN     = 6000;
 const FILL_TARGET  = 0.80;
-const MIN_DELIVERY = 100;   // Any meaningful delivery — load grouping handles bulk threshold
+const MIN_DELIVERY = 500;   // Minimum for any delivery, tank-wagon or bulk
 const NON_FUEL_ALERT_PCT = 25;
 
 const SITES = [
@@ -188,12 +188,11 @@ function round100(n) { return Math.round(n / 100) * 100; }
 
 function allocate(ullage, cap) {
   const space = Math.min(ullage, cap);
-  if (space <= 0) return 0;
+  if (space < MIN_DELIVERY) return 0;
   let total = 0;
   for (const c of COMPARTMENTS) { if (total + c <= space) total += c; }
-  // If no compartment fits (tank smaller than smallest compartment),
-  // deliver what the tank can accept rounded to 100G
-  if (total === 0 && space >= 100) return round100(space);
+  // If no full compartment fits but tank can accept 500G+, deliver what fits rounded to 100G
+  if (total === 0 && space >= MIN_DELIVERY) return round100(space);
   return total;
 }
 
@@ -365,7 +364,7 @@ function renderResults(tankData) {
   const deliveryDateShort = deliveryDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const now = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  const fuelTanks    = tankData.filter(t => isFuel(t.fuelType) && t.projectedUllage >= 100);
+  const fuelTanks    = tankData.filter(t => isFuel(t.fuelType) && t.projectedUllage >= MIN_DELIVERY);
   const nonFuelAlert = tankData.filter(t => !isFuel(t.fuelType) && !t.isWasteOil && t.pct <= NON_FUEL_ALERT_PCT);
 
   const loads = buildLoadPlans(fuelTanks);
