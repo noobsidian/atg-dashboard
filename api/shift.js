@@ -17,8 +17,8 @@ const SITES = [
   { name: "Neuse River NRRF RW",           url: "http://63.46.75.227:10001" },
 ];
 
-const RELAY_URL = process.env.RELAY_URL;       // e.g. http://<vm-ip>:8090/relay
-const RELAY_SECRET = process.env.RELAY_SECRET; // must match the VM's relay.js
+const RELAY_URL = process.env.RELAY_URL;
+const RELAY_SECRET = process.env.RELAY_SECRET;
 const TIMEOUT_MS = 20000;
 
 async function fetchViaRelay(targetUrl, body) {
@@ -42,7 +42,6 @@ async function fetchViaRelay(targetUrl, body) {
   }
 }
 
-// Build a date string YYYY-MM-DD N days ago
 function daysAgo(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -87,7 +86,6 @@ module.exports = async (req, res) => {
 
   const site = SITES[idx];
 
-  // Fetch 28 days of shift data to get 3 occurrences of each weekday
   const startDate = daysAgo(28);
   const endDate = daysAgo(0);
   const body = `tank=${encodeURIComponent(tankParam)}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
@@ -96,15 +94,12 @@ module.exports = async (req, res) => {
     const raw = await fetchViaRelay(site.url + "/php/getShift.php", body);
     const data = JSON.parse(raw);
 
-    // Process shift rows into daily consumption per weekday
-    // prodvoldiff < -10 = real consumption (excludes temp noise)
-    // prodvoldiff > 0   = delivery, excluded
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weekdayData = {}; // { 0: {date: gallons,...}, 1: {...}, ... }
+    const weekdayData = {};
 
     data.forEach((row) => {
       const diff = parseFloat(row.prodvoldiff || 0);
-      if (diff >= -10) return; // exclude deliveries and noise
+      if (diff >= -10) return;
 
       const tmstart = parseInt(row.tmstart, 10);
       if (!tmstart) return;
