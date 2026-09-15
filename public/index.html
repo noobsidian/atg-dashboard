@@ -2013,8 +2013,6 @@ async function fetchAll() {
 
 document.getElementById("refresh-btn").addEventListener("click", fetchAll);
 
-// Load flags once on startup
-try { loadAllFlags(); } catch(e) {}
 document.getElementById("refresh-select").addEventListener("change", applyRefreshRate);
 
 // ── Restore saved refresh rate ─────────────────────────────────────────────
@@ -2217,8 +2215,13 @@ function copyAlarms() {
 document.getElementById("copy-levels-btn").addEventListener("click", copyTankLevels);
 document.getElementById("copy-alarms-btn").addEventListener("click", copyAlarms);
 
-// Start
-fetchAll();
+// Start — wait for flags to load before the first render, so order
+// badges show correctly on the very first page load instead of only
+// appearing after a manual refresh.
+(async function init() {
+  try { await loadAllFlags(); } catch(e) {}
+  fetchAll();
+})();
 
 // ── Product filter ─────────────────────────────────────────────────────────
 
