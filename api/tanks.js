@@ -13,10 +13,15 @@
 
 const { kv } = require("@vercel/kv");
 
+// In-memory cache — persists for the lifetime of the function instance
+// Vercel reuses warm instances, so this meaningfully reduces KV reads
+let memCache = null;
+let memCacheAt = 0;
+const MEM_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Cache-Control", "no-store");
 
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -34,23 +39,36 @@ module.exports = async (req, res) => {
     }
   }
 
-  const payload = await kv.get("atg:latest");
+  // Serve from in-memory cache if fresh
+  const now = Date.now();
+  let payload = null;
+  if (memCache && (now - memCacheAt) < MEM_CACHE_TTL_MS) {
+    payload = memCache;
+    res.setHeader("X-Cache", "HIT");
+  } else {
+    payload = await kv.get("atg:latest");
+    if (payload) {
+      memCache = payload;
+      memCacheAt = now;
+    }
+    res.setHeader("X-Cache", "MISS");
+  }
 
   if (!payload) {
     res.status(503).json({ error: "No data yet — poller hasn't pushed anything" });
     return;
   }
 
-  const ageMs = Date.now() - new Date(payload.polledAt).getTime();
-  const staleAfterMs = 5 * 60 * 1000; // flag stale if older than 5 minutes
+  const ageMs = now - new Date(payload.polledAt).getTime();
+  const staleAfterMs = 5 * 60 * 1000;
   res.setHeader("X-Data-Age-Ms", String(ageMs));
   res.setHeader("X-Data-Stale", ageMs > staleAfterMs ? "true" : "false");
+  // Allow CDN/browser to cache for 60 seconds
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=30");
 
   let results = payload.sites;
 
   if (isVendor) {
-    // Matches production's vendor scrubbing: strip IPs/backup info and
-    // alarm details, keep name/addr/error/invHtml/cgiData only.
     results = results.map((r) => ({
       name: r.name,
       addr: r.addr,
