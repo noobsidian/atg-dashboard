@@ -780,11 +780,10 @@ body.light .tt-gal { color: #1a1a2e; }
     <button id="theme-btn">&#9728; Light</button>
     <label class="refresh-label" for="refresh-select">Refresh:</label>
     <select id="refresh-select">
-      <option value="30">30s</option>
-      <option value="60">60s</option>
-      <option value="120">120s</option>
-      <option value="300" selected>5 min</option>
+      <option value="300">5 min</option>
       <option value="600">10 min</option>
+      <option value="900" selected>15 min</option>
+      <option value="1800">30 min</option>
     </select>
     <span id="auto-lbl">Refresh in 5m</span>
     <span id="ts">—</span>
@@ -1037,7 +1036,7 @@ function normalizeFuelType(name) {
   return PRODUCT_NAME_MAP[name] || name;
 }
 
-let REFRESH_SECONDS = 300;
+let REFRESH_SECONDS = 900;
 let refreshTimer    = null;
 let countTimer      = null;
 let allSiteResults  = [];
